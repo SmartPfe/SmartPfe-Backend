@@ -41,6 +41,7 @@ const registerUser = async (req, res) => {
         _id: user._id,
         fullName: user.fullName,
         email: user.email,
+        avatar: user.avatar,
         token: generateToken(user._id),
       });
     } else {
@@ -70,6 +71,7 @@ const loginUser = async (req, res) => {
         _id: user._id,
         fullName: user.fullName,
         email: user.email,
+        avatar: user.avatar,
         token: generateToken(user._id),
       });
     } else {
@@ -194,7 +196,7 @@ const googleLogin = async (req, res) => {
     });
 
     const payload = ticket.getPayload();
-    const { sub: googleId, email, name: fullName } = payload;
+    const { sub: googleId, email, name: fullName, picture } = payload;
 
     if (!email) {
       return res.status(400).json({ message: "Google account does not provide an email" });
@@ -210,6 +212,7 @@ const googleLogin = async (req, res) => {
       if (user) {
         // Link Google ID to existing email account
         user.googleId = googleId;
+        if (picture) user.avatar = picture;
         await user.save();
       } else {
         // 3. Create new user
@@ -217,7 +220,14 @@ const googleLogin = async (req, res) => {
           fullName: fullName || email.split("@")[0],
           email,
           googleId,
+          avatar: picture,
         });
+      }
+    } else {
+      // Keep avatar updated if it changed on Google's end
+      if (picture && user.avatar !== picture) {
+        user.avatar = picture;
+        await user.save();
       }
     }
 
@@ -226,6 +236,7 @@ const googleLogin = async (req, res) => {
         _id: user._id,
         fullName: user.fullName,
         email: user.email,
+        avatar: user.avatar,
         token: generateToken(user._id),
       });
     } else {

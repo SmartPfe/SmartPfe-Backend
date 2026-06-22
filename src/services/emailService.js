@@ -13,11 +13,7 @@ const sendResetPasswordEmail = async (email, token) => {
 const resetLink =
   `${process.env.FRONTEND_URL}/reset-password/${token}`;
 
-
-
   try {
-    console.log("API KEY EXISTS:", !!process.env.BREVO_API_KEY);
-    console.log("EMAIL FROM:", process.env.EMAIL_FROM);
     await emailApi.sendTransacEmail({
       sender: {
         email: process.env.EMAIL_FROM,
@@ -46,8 +42,6 @@ const resetLink =
         <p>Ce lien expire dans 1 heure.</p>
       `,
     });
-
-    console.info("[email] Reset email sent to:", email);
 
     return {
       sent: true,

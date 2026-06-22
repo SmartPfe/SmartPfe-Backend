@@ -1,6 +1,9 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const crypto = require("crypto");
+const { OAuth2Client } = require("google-auth-library");
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -57,6 +60,10 @@ const loginUser = async (req, res) => {
 
     // Check for user email
     const user = await User.findOne({ email });
+
+    if (user && !user.password) {
+      return res.status(400).json({ message: "This account was registered using Google. Please log in using 'Continue with Google'." });
+    }
 
     if (user && (await user.matchPassword(password))) {
       res.json({
@@ -168,10 +175,73 @@ const resetPassword = async (req, res) => {
     });
   }
 };
+const googleLogin = async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({ message: "Google credential is required" });
+    }
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      console.warn("WARNING: GOOGLE_CLIENT_ID is not configured in environment variables.");
+    }
+
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: clientId,
+    });
+
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, name: fullName } = payload;
+
+    if (!email) {
+      return res.status(400).json({ message: "Google account does not provide an email" });
+    }
+
+    // 1. Check if user already exists with googleId
+    let user = await User.findOne({ googleId });
+
+    if (!user) {
+      // 2. Check if user exists with the same email
+      user = await User.findOne({ email });
+
+      if (user) {
+        // Link Google ID to existing email account
+        user.googleId = googleId;
+        await user.save();
+      } else {
+        // 3. Create new user
+        user = await User.create({
+          fullName: fullName || email.split("@")[0],
+          email,
+          googleId,
+        });
+      }
+    }
+
+    if (user) {
+      res.status(200).json({
+        _id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        token: generateToken(user._id),
+      });
+    } else {
+      res.status(400).json({ message: "Failed to authenticate with Google" });
+    }
+  } catch (error) {
+    console.error("[auth] googleLogin error:", error.message);
+    res.status(500).json({ message: "Google authentication failed", error: error.message });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
   getProfile,
   forgotPassword,
   resetPassword,
+  googleLogin,
 };

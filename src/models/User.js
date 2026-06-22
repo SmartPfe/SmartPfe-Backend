@@ -21,8 +21,15 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: [true, "Password is required"],
+      required: function() {
+        return !this.googleId;
+      },
       minlength: [6, "Password must be at least 6 characters"],
+    },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
     },
     resetToken: {
       type: String,
@@ -38,7 +45,7 @@ const userSchema = new mongoose.Schema(
 // Encrypt password using bcrypt before saving
 userSchema.pre("save", async function () {
   // Only hash the password if it has been modified (or is new)
-  if (!this.isModified("password")) {
+  if (!this.password || !this.isModified("password")) {
     return;
   }
 

@@ -3,12 +3,12 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 
 const connectDB = require("./config/db");
-console.log("MONGO_URI =", process.env.MONGO_URI);
 dotenv.config();
 
 connectDB();
 
 const app = express();
+console.log("MONGO_URI =", process.env.MONGO_URI);
 
 const authRoutes = require("./routes/authRoutes");
 const projectRoutes = require("./routes/projectRoutes");

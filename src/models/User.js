@@ -41,6 +41,10 @@ const userSchema = new mongoose.Schema(
     resetTokenExpiry: {
       type: Date,
     },
+    hasCompletedOnboarding: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

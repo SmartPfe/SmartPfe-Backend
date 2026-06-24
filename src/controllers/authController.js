@@ -42,6 +42,7 @@ const registerUser = async (req, res) => {
         fullName: user.fullName,
         email: user.email,
         avatar: user.avatar,
+        hasCompletedOnboarding: user.hasCompletedOnboarding,
         token: generateToken(user._id),
       });
     } else {
@@ -72,6 +73,7 @@ const loginUser = async (req, res) => {
         fullName: user.fullName,
         email: user.email,
         avatar: user.avatar,
+        hasCompletedOnboarding: user.hasCompletedOnboarding,
         token: generateToken(user._id),
       });
     } else {
@@ -237,6 +239,7 @@ const googleLogin = async (req, res) => {
         fullName: user.fullName,
         email: user.email,
         avatar: user.avatar,
+        hasCompletedOnboarding: user.hasCompletedOnboarding,
         token: generateToken(user._id),
       });
     } else {

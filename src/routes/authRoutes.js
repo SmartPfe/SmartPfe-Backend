@@ -5,6 +5,7 @@ const {
   registerUser,
   loginUser,
   getProfile,
+  updateProfile,
   forgotPassword,
   resetPassword,
   googleLogin,
@@ -24,6 +25,11 @@ router.get(
   "/profile",
   protect,
   getProfile
+);
+router.put(
+  "/profile",
+  protect,
+  updateProfile
 );
 router.post("/forgot-password",forgotPassword);
 router.post("/reset-password", resetPassword);

@@ -42,6 +42,7 @@ const registerUser = async (req, res) => {
         fullName: user.fullName,
         email: user.email,
         avatar: user.avatar,
+        authProvider: "email",
         hasCompletedOnboarding: user.hasCompletedOnboarding,
         token: generateToken(user._id),
       });
@@ -73,6 +74,7 @@ const loginUser = async (req, res) => {
         fullName: user.fullName,
         email: user.email,
         avatar: user.avatar,
+        authProvider: "email",
         hasCompletedOnboarding: user.hasCompletedOnboarding,
         token: generateToken(user._id),
       });
@@ -97,6 +99,65 @@ const getProfile = async (req, res) => {
       message: "Server error"
     });
 
+  }
+};
+
+const updateProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.googleId) {
+      return res.status(403).json({
+        message: "This account is connected with Google. Profile and password changes are managed by Google.",
+      });
+    }
+
+    const { fullName, currentPassword, newPassword } = req.body;
+    const wantsPasswordChange = Boolean(
+      (currentPassword && currentPassword.trim()) ||
+      (newPassword && newPassword.trim())
+    );
+    let passwordChanged = false;
+
+    if (fullName) {
+      user.fullName = fullName;
+    }
+
+    if (wantsPasswordChange) {
+      if (!newPassword || newPassword.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters" });
+      }
+
+      if (!currentPassword) {
+        return res.status(400).json({ message: "Current password is required" });
+      }
+
+      const isCurrentPasswordValid = await user.matchPassword(currentPassword);
+      if (!isCurrentPasswordValid) {
+        return res.status(401).json({ message: "Current password is incorrect" });
+      }
+
+      user.password = newPassword;
+      passwordChanged = true;
+    }
+
+    await user.save();
+
+    return res.json({
+      _id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      avatar: user.avatar,
+      authProvider: "email",
+      hasCompletedOnboarding: user.hasCompletedOnboarding,
+      passwordChanged,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 const forgotPassword = async (req, res) => {
@@ -239,6 +300,7 @@ const googleLogin = async (req, res) => {
         fullName: user.fullName,
         email: user.email,
         avatar: user.avatar,
+        authProvider: "google",
         hasCompletedOnboarding: user.hasCompletedOnboarding,
         token: generateToken(user._id),
       });
@@ -255,6 +317,7 @@ module.exports = {
   registerUser,
   loginUser,
   getProfile,
+  updateProfile,
   forgotPassword,
   resetPassword,
   googleLogin,

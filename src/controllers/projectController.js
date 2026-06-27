@@ -48,7 +48,32 @@ const getMyProject = async (req, res) => {
   }
 };
 
+// @desc    Update current user's project onboarding data
+// @route   PUT /api/projects/my-project
+// @access  Private
+const updateMyProject = async (req, res) => {
+  try {
+    const { basics, description, technicalContext } = req.body;
+
+    const project = await Project.findOneAndUpdate(
+      { user: req.user._id },
+      { basics, description, technicalContext },
+      { new: true, runValidators: true }
+    );
+
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user" });
+    }
+
+    res.status(200).json(project);
+  } catch (error) {
+    console.error("[project] updateMyProject error:", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 module.exports = {
   createProject,
   getMyProject,
+  updateMyProject,
 };

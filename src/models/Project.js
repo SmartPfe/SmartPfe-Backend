@@ -26,6 +26,7 @@ const projectSchema = new mongoose.Schema(
     },
     technicalContext: {
       developmentTypes: { type: [String] },
+      otherDevelopmentType: { type: String },
       methodology: { type: String },
       technologies: { type: [String] },
       otherTechnologies: { type: String },

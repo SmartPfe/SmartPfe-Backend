@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const crypto = require("crypto");
 const { OAuth2Client } = require("google-auth-library");
+const { createNotification } = require("../services/notificationService");
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -146,6 +147,15 @@ const updateProfile = async (req, res) => {
     }
 
     await user.save();
+
+    await createNotification({
+      user: req.user._id,
+      title: passwordChanged ? "Password updated" : "Profile updated",
+      message: passwordChanged
+        ? "Your password was changed successfully."
+        : "Your profile information has been saved.",
+      type: "success",
+    });
 
     return res.json({
       _id: user._id,

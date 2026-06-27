@@ -1,5 +1,6 @@
 const Project = require("../models/Project");
 const User = require("../models/User");
+const { createNotification } = require("../services/notificationService");
 
 // @desc    Create a new project from onboarding
 // @route   POST /api/projects/onboarding
@@ -22,6 +23,13 @@ const createProject = async (req, res) => {
       user.hasCompletedOnboarding = true;
       await user.save();
     }
+
+    await createNotification({
+      user: req.user._id,
+      title: "Project created",
+      message: "Your PFE workspace has been created successfully.",
+      type: "success",
+    });
 
     res.status(201).json(project);
   } catch (error) {
@@ -64,6 +72,13 @@ const updateMyProject = async (req, res) => {
     if (!project) {
       return res.status(404).json({ message: "Project not found for this user" });
     }
+
+    await createNotification({
+      user: req.user._id,
+      title: "Project settings updated",
+      message: "Your onboarding information has been saved.",
+      type: "success",
+    });
 
     res.status(200).json(project);
   } catch (error) {

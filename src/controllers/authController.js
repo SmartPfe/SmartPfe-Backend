@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const crypto = require("crypto");
 const { OAuth2Client } = require("google-auth-library");
-const { createNotification } = require("../services/notificationService");
+const { createNotification, createAdminNotification } = require("../services/notificationService");
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -38,6 +38,12 @@ const registerUser = async (req, res) => {
     });
 
     if (user) {
+      await createAdminNotification({
+        title: "New user registered",
+        message: `${user.fullName} joined the platform as ${user.role || "etudiant"}.`,
+        type: "info",
+      });
+
       res.status(201).json({
         _id: user._id,
         fullName: user.fullName,
@@ -45,6 +51,7 @@ const registerUser = async (req, res) => {
         avatar: user.avatar,
         authProvider: "email",
         hasCompletedOnboarding: user.hasCompletedOnboarding,
+        role: user.role || "etudiant",
         token: generateToken(user._id),
       });
     } else {
@@ -77,6 +84,7 @@ const loginUser = async (req, res) => {
         avatar: user.avatar,
         authProvider: "email",
         hasCompletedOnboarding: user.hasCompletedOnboarding,
+        role: user.role || "etudiant",
         token: generateToken(user._id),
       });
     } else {
@@ -164,6 +172,7 @@ const updateProfile = async (req, res) => {
       avatar: user.avatar,
       authProvider: "email",
       hasCompletedOnboarding: user.hasCompletedOnboarding,
+      role: user.role || "etudiant",
       passwordChanged,
     });
   } catch (error) {
@@ -295,6 +304,12 @@ const googleLogin = async (req, res) => {
           googleId,
           avatar: picture,
         });
+
+        await createAdminNotification({
+          title: "New Google user registered",
+          message: `${user.fullName} joined the platform with Gmail.`,
+          type: "info",
+        });
       }
     } else {
       // Keep avatar updated if it changed on Google's end
@@ -312,6 +327,7 @@ const googleLogin = async (req, res) => {
         avatar: user.avatar,
         authProvider: "google",
         hasCompletedOnboarding: user.hasCompletedOnboarding,
+        role: user.role || "etudiant",
         token: generateToken(user._id),
       });
     } else {

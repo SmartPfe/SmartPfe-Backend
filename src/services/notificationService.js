@@ -1,4 +1,5 @@
 const Notification = require("../models/Notification");
+const User = require("../models/User");
 
 const clients = new Map();
 
@@ -43,9 +44,30 @@ async function createNotification({ user, title, message, type = "info" }) {
   return notification;
 }
 
+async function createAdminNotification({ title, message, type = "info" }) {
+  const admins = await User.find({ role: "admin" }).select("_id");
+  if (!admins.length) return [];
+
+  const notifications = await Notification.insertMany(
+    admins.map((admin) => ({
+      user: admin._id,
+      title,
+      message,
+      type,
+    }))
+  );
+
+  notifications.forEach((notification) => {
+    broadcastToUser(notification.user, "notification", notification);
+  });
+
+  return notifications;
+}
+
 module.exports = {
   addClient,
   sendEvent,
   broadcastToUser,
   createNotification,
+  createAdminNotification,
 };

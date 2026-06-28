@@ -1,6 +1,6 @@
 const Project = require("../models/Project");
 const User = require("../models/User");
-const { createNotification } = require("../services/notificationService");
+const { createNotification, createAdminNotification } = require("../services/notificationService");
 
 // @desc    Create a new project from onboarding
 // @route   POST /api/projects/onboarding
@@ -28,6 +28,12 @@ const createProject = async (req, res) => {
       user: req.user._id,
       title: "Project created",
       message: "Your PFE workspace has been created successfully.",
+      type: "success",
+    });
+
+    await createAdminNotification({
+      title: "New project created",
+      message: `${user?.fullName || "A student"} created "${basics?.title || "Untitled Project"}".`,
       type: "success",
     });
 

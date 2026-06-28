@@ -87,8 +87,40 @@ const updateMyProject = async (req, res) => {
   }
 };
 
+// @desc    Update only the problem statement of the current user's project
+// @route   PATCH /api/projects/problem-statement
+// @access  Private
+const updateProblemStatement = async (req, res) => {
+  try {
+    const { problemStatement } = req.body;
+
+    if (problemStatement === undefined) {
+      return res.status(400).json({ message: "Problem statement content is required" });
+    }
+
+    const project = await Project.findOneAndUpdate(
+      { user: req.user._id },
+      { $set: { "description.problemStatement": problemStatement } },
+      { new: true, runValidators: true }
+    );
+
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user" });
+    }
+
+    res.status(200).json({ 
+      problemStatement: project.description.problemStatement,
+      updatedAt: project.updatedAt 
+    });
+  } catch (error) {
+    console.error("[project] updateProblemStatement error:", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 module.exports = {
   createProject,
   getMyProject,
   updateMyProject,
+  updateProblemStatement,
 };

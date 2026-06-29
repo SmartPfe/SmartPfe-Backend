@@ -1,6 +1,42 @@
 const User = require("../models/User");
 const Project = require("../models/Project");
 
+function getLastMonths(count = 6) {
+  const months = [];
+  const now = new Date();
+
+  for (let index = count - 1; index >= 0; index -= 1) {
+    const date = new Date(now.getFullYear(), now.getMonth() - index, 1);
+    months.push({
+      key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
+      label: date.toLocaleString("en", { month: "short" }),
+    });
+  }
+
+  return months;
+}
+
+function getMonthKey(value) {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function countBy(items, getKey, fallback = "Not provided") {
+  return items.reduce((acc, item) => {
+    const rawKey = getKey(item);
+    const key = rawKey && String(rawKey).trim() ? String(rawKey).trim() : fallback;
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+function toChartItems(counts, limit = 6) {
+  return Object.entries(counts)
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, limit);
+}
+
 const getDashboardStats = async (req, res) => {
   try {
     const [totalUsers, totalStudents, totalAdmins, totalProjects, completedOnboarding] = await Promise.all([
@@ -10,6 +46,25 @@ const getDashboardStats = async (req, res) => {
       Project.countDocuments(),
       User.countDocuments({ hasCompletedOnboarding: true }),
     ]);
+
+    const [allUsers, allProjects] = await Promise.all([
+      User.find().select("role hasCompletedOnboarding createdAt"),
+      Project.find().select("basics.domain technicalContext.methodology createdAt"),
+    ]);
+
+    const months = getLastMonths(6);
+    const userGrowth = months.map((month) => ({
+      label: month.label,
+      value: allUsers.filter((user) => getMonthKey(user.createdAt) === month.key).length,
+    }));
+    const projectGrowth = months.map((month) => ({
+      label: month.label,
+      value: allProjects.filter((project) => getMonthKey(project.createdAt) === month.key).length,
+    }));
+
+    const domains = toChartItems(countBy(allProjects, (project) => project.basics?.domain));
+    const methodologies = toChartItems(countBy(allProjects, (project) => project.technicalContext?.methodology));
+    const complexities = toChartItems(countBy(allProjects, (project) => project.technicalContext?.complexity));
 
     const recentUsers = await User.find()
       .sort({ createdAt: -1 })
@@ -29,6 +84,17 @@ const getDashboardStats = async (req, res) => {
         admins: totalAdmins,
         projects: totalProjects,
         completedOnboarding,
+      },
+      charts: {
+        userGrowth,
+        projectGrowth,
+        onboardingStatus: [
+          { label: "Completed", value: completedOnboarding },
+          { label: "Pending", value: Math.max(totalUsers - completedOnboarding, 0) },
+        ],
+        complexities,
+        domains,
+        methodologies,
       },
       recentUsers: recentUsers.map((user) => ({
         ...user.toObject(),

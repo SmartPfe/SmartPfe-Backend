@@ -1,5 +1,19 @@
 const mongoose = require("mongoose");
 
+const actorSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    description: { type: String, required: true, trim: true },
+    type: {
+      type: String,
+      enum: ["primary", "external"],
+      default: "primary",
+    },
+    icon: { type: String, default: "person", trim: true },
+  },
+  { _id: true }
+);
+
 const projectSchema = new mongoose.Schema(
   {
     user: {
@@ -34,6 +48,10 @@ const projectSchema = new mongoose.Schema(
       complexity: { type: String },
       teamSize: { type: Number },
       duration: { type: Number },
+    },
+    actors: {
+      type: [actorSchema],
+      default: [],
     },
   },
   { timestamps: true }

@@ -51,6 +51,8 @@ const formatContextString = (ctx) =>
     .filter(Boolean)
     .join("\n");
 
+const getProjectContext = (project) => buildProjectContext(project);
+
 // --- Prompt Definitions ---
 
 const PROMPTS = {
@@ -160,4 +162,4 @@ const callAI = async (type, project, currentText = null) => {
   return callOpenRouter(systemPrompt, userPrompt);
 };
 
-module.exports = { callAI };
+module.exports = { callAI, callOpenRouter, formatContextString, getProjectContext };

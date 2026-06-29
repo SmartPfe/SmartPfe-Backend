@@ -1,6 +1,7 @@
 const Project = require("../models/Project");
 const User = require("../models/User");
 const { createNotification, createAdminNotification } = require("../services/notificationService");
+const { getActors: getActorsService, saveActors: saveActorsService } = require("../services/actorService");
 
 // @desc    Create a new project from onboarding
 // @route   POST /api/projects/onboarding
@@ -124,9 +125,44 @@ const updateProblemStatement = async (req, res) => {
   }
 };
 
+// @desc    Get actors for a project owned by the current user
+// @route   GET /api/projects/:id/actors
+// @access  Private
+const getActors = async (req, res) => {
+  try {
+    const actors = await getActorsService(req.user._id, req.params.id);
+    res.status(200).json({ actors });
+  } catch (error) {
+    console.error("[project] getActors error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
+// @desc    Replace actors for a project owned by the current user
+// @route   PUT /api/projects/:id/actors
+// @access  Private
+const updateActors = async (req, res) => {
+  try {
+    const { actors } = req.body;
+    if (!Array.isArray(actors)) {
+      return res.status(400).json({ message: "Actors must be an array" });
+    }
+
+    const savedActors = await saveActorsService(req.user._id, req.params.id, actors);
+    res.status(200).json({ actors: savedActors });
+  } catch (error) {
+    console.error("[project] updateActors error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
 module.exports = {
   createProject,
   getMyProject,
   updateMyProject,
   updateProblemStatement,
+  getActors,
+  updateActors,
 };

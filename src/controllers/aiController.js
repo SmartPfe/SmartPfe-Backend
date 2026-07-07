@@ -4,6 +4,14 @@ const {
   generateActors: generateActorsService,
   refineActors: refineActorsService,
 } = require("../services/actorService");
+const {
+  generateExistingSolutions: generateExistingSolutionsService,
+  refineExistingSolutions: refineExistingSolutionsService,
+} = require("../services/existingSolutionService");
+const {
+  generateFunctionalRequirements: generateFunctionalRequirementsService,
+  refineFunctionalRequirements: refineFunctionalRequirementsService,
+} = require("../services/functionalRequirementService");
 
 // @desc    Generate a first draft of the problem statement using AI
 // @route   POST /api/ai/problem-statement/generate
@@ -87,9 +95,95 @@ const refineActors = async (req, res) => {
   }
 };
 
+// @desc    Generate existing solutions using AI
+// @route   POST /api/ai/existing-solutions/generate
+// @access  Private
+const generateExistingSolutions = async (req, res) => {
+  try {
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const existingSolutions = await generateExistingSolutionsService(project);
+    res.status(200).json({ existingSolutions });
+  } catch (error) {
+    console.error("[ai] generate existing solutions error:", error.message);
+    res.status(500).json({ message: error.message || "AI existing solution generation failed." });
+  }
+};
+
+// @desc    Refine existing solutions using AI
+// @route   POST /api/ai/existing-solutions/refine
+// @access  Private
+const refineExistingSolutions = async (req, res) => {
+  try {
+    const { existingSolutions } = req.body;
+    if (!Array.isArray(existingSolutions) || existingSolutions.length === 0) {
+      return res.status(400).json({ message: "Current existing solutions are required to refine." });
+    }
+
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const refinedSolutions = await refineExistingSolutionsService(project, existingSolutions);
+    res.status(200).json({ existingSolutions: refinedSolutions });
+  } catch (error) {
+    console.error("[ai] refine existing solutions error:", error.message);
+    res.status(500).json({ message: error.message || "AI existing solution refinement failed." });
+  }
+};
+
+// @desc    Generate functional requirements using AI
+// @route   POST /api/ai/functional-requirements/generate
+// @access  Private
+const generateFunctionalRequirements = async (req, res) => {
+  try {
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const functionalRequirements = await generateFunctionalRequirementsService(project);
+    res.status(200).json({ functionalRequirements });
+  } catch (error) {
+    console.error("[ai] generate functional requirements error:", error.message);
+    res.status(500).json({ message: error.message || "AI functional requirement generation failed." });
+  }
+};
+
+// @desc    Refine functional requirements using AI
+// @route   POST /api/ai/functional-requirements/refine
+// @access  Private
+const refineFunctionalRequirements = async (req, res) => {
+  try {
+    const { functionalRequirements } = req.body;
+    if (!Array.isArray(functionalRequirements) || functionalRequirements.length === 0) {
+      return res.status(400).json({ message: "Current functional requirements are required to refine." });
+    }
+
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const refinedRequirements = await refineFunctionalRequirementsService(project, functionalRequirements);
+    res.status(200).json({ functionalRequirements: refinedRequirements });
+  } catch (error) {
+    console.error("[ai] refine functional requirements error:", error.message);
+    res.status(500).json({ message: error.message || "AI functional requirement refinement failed." });
+  }
+};
+
 module.exports = {
   generateProblemStatement,
   refineProblemStatement,
   generateActors,
   refineActors,
+  generateExistingSolutions,
+  refineExistingSolutions,
+  generateFunctionalRequirements,
+  refineFunctionalRequirements,
 };

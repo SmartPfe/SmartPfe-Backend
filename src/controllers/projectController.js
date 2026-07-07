@@ -2,6 +2,14 @@ const Project = require("../models/Project");
 const User = require("../models/User");
 const { createNotification, createAdminNotification } = require("../services/notificationService");
 const { getActors: getActorsService, saveActors: saveActorsService } = require("../services/actorService");
+const {
+  getExistingSolutions: getExistingSolutionsService,
+  saveExistingSolutions: saveExistingSolutionsService,
+} = require("../services/existingSolutionService");
+const {
+  getFunctionalRequirements: getFunctionalRequirementsService,
+  saveFunctionalRequirements: saveFunctionalRequirementsService,
+} = require("../services/functionalRequirementService");
 
 // @desc    Create a new project from onboarding
 // @route   POST /api/projects/onboarding
@@ -158,6 +166,80 @@ const updateActors = async (req, res) => {
   }
 };
 
+// @desc    Get existing solutions for a project owned by the current user
+// @route   GET /api/projects/:id/existing-solutions
+// @access  Private
+const getExistingSolutions = async (req, res) => {
+  try {
+    const existingSolutions = await getExistingSolutionsService(req.user._id, req.params.id);
+    res.status(200).json({ existingSolutions });
+  } catch (error) {
+    console.error("[project] getExistingSolutions error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
+// @desc    Replace existing solutions for a project owned by the current user
+// @route   PUT /api/projects/:id/existing-solutions
+// @access  Private
+const updateExistingSolutions = async (req, res) => {
+  try {
+    const { existingSolutions } = req.body;
+    if (!Array.isArray(existingSolutions)) {
+      return res.status(400).json({ message: "Existing solutions must be an array" });
+    }
+
+    const savedSolutions = await saveExistingSolutionsService(
+      req.user._id,
+      req.params.id,
+      existingSolutions
+    );
+    res.status(200).json({ existingSolutions: savedSolutions });
+  } catch (error) {
+    console.error("[project] updateExistingSolutions error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
+// @desc    Get functional requirements for a project owned by the current user
+// @route   GET /api/projects/:id/functional-requirements
+// @access  Private
+const getFunctionalRequirements = async (req, res) => {
+  try {
+    const functionalRequirements = await getFunctionalRequirementsService(req.user._id, req.params.id);
+    res.status(200).json({ functionalRequirements });
+  } catch (error) {
+    console.error("[project] getFunctionalRequirements error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
+// @desc    Replace functional requirements for a project owned by the current user
+// @route   PUT /api/projects/:id/functional-requirements
+// @access  Private
+const updateFunctionalRequirements = async (req, res) => {
+  try {
+    const { functionalRequirements } = req.body;
+    if (!Array.isArray(functionalRequirements)) {
+      return res.status(400).json({ message: "Functional requirements must be an array" });
+    }
+
+    const savedRequirements = await saveFunctionalRequirementsService(
+      req.user._id,
+      req.params.id,
+      functionalRequirements
+    );
+    res.status(200).json({ functionalRequirements: savedRequirements });
+  } catch (error) {
+    console.error("[project] updateFunctionalRequirements error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
 module.exports = {
   createProject,
   getMyProject,
@@ -165,4 +247,8 @@ module.exports = {
   updateProblemStatement,
   getActors,
   updateActors,
+  getExistingSolutions,
+  updateExistingSolutions,
+  getFunctionalRequirements,
+  updateFunctionalRequirements,
 };

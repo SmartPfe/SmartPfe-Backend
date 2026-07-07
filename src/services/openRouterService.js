@@ -1,5 +1,10 @@
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
-const OPENROUTER_MODEL = "openai/gpt-oss-120b:free";
+const OPENROUTER_MODELS = [
+  "nvidia/nemotron-3-super-120b-a12b:free",
+  "nvidia/nemotron-3-ultra-550b-a55b:free",
+  "openai/gpt-oss-120b:free",
+  "openrouter/owl-alpha",
+];
 
 // --- Context Builder ---
 
@@ -14,6 +19,7 @@ const buildProjectContext = (project) => {
     outputLanguage:      project.basics?.language || "English",
     university:          project.basics?.university || "",
     academicYear:        project.basics?.academicYear || "",
+    problemStatement:    project.description?.problemStatement || "",
     objective:           project.description?.objective || "",
     detailedDescription: project.description?.detailedDescription || "",
     deliverables:        filterEmpty(project.description?.deliverables).join(", "),
@@ -37,6 +43,7 @@ const formatContextString = (ctx) =>
     `- University: ${ctx.university} | Academic Year: ${ctx.academicYear}`,
     ctx.industry     ? `- Industry: ${ctx.industry}` : null,
     ctx.company      ? `- Company partner: ${ctx.company}` : null,
+    ctx.problemStatement ? `- Problem statement: ${ctx.problemStatement}` : null,
     ctx.objective    ? `- Objective: ${ctx.objective}` : null,
     ctx.detailedDescription ? `- Detailed description: ${ctx.detailedDescription}` : null,
     ctx.deliverables ? `- Deliverables: ${ctx.deliverables}` : null,
@@ -97,9 +104,42 @@ ${formatContextString(ctx)}
 `.trim(),
 };
 
-// --- OpenRouter HTTP call with retry ---
+// --- OpenRouter HTTP call with model fallback ---
 
-const callOpenRouter = async (systemPrompt, userPrompt = null, retryCount = 0) => {
+const callOpenRouterModel = async (model, messages, retryCount = 0) => {
+  const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      "HTTP-Referer": process.env.FRONTEND_URL || "http://localhost:3000",
+      "X-Title": "PfeMentor",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ model, messages }),
+  });
+
+  if (response.status === 429 && retryCount < 1) {
+    console.warn(`[openRouter] Model ${model} rate limited (429). Retrying in 2s...`);
+    await new Promise((r) => setTimeout(r, 2000));
+    return callOpenRouterModel(model, messages, retryCount + 1);
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[openRouter] Model ${model} API error ${response.status}:`, errorText);
+    throw new Error(`Model ${model} failed with status ${response.status}.`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error(`Model ${model} returned an empty response.`);
+  }
+
+  return content;
+};
+
+const callOpenRouter = async (systemPrompt, userPrompt = null) => {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error("OpenRouter API key is not configured on the server.");
@@ -110,39 +150,18 @@ const callOpenRouter = async (systemPrompt, userPrompt = null, retryCount = 0) =
     messages.push({ role: "user", content: userPrompt });
   }
 
-  const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "HTTP-Referer": process.env.FRONTEND_URL || "http://localhost:3000",
-      "X-Title": "PfeMentor",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ model: OPENROUTER_MODEL, messages }),
-  });
-
-  // Retry once on 429 (rate limit) with a 2-second wait
-  if (response.status === 429) {
-    if (retryCount < 1) {
-      console.warn("[openRouter] Rate limited (429). Retrying in 2s...");
-      await new Promise((r) => setTimeout(r, 2000));
-      return callOpenRouter(systemPrompt, userPrompt, retryCount + 1);
+  const failures = [];
+  for (const model of OPENROUTER_MODELS) {
+    try {
+      return await callOpenRouterModel(model, messages);
+    } catch (error) {
+      failures.push(`${model}: ${error.message}`);
+      console.warn(`[openRouter] Falling back after ${model} failed.`);
     }
-    throw new Error("The AI service is currently busy. Please wait a moment and try again.");
   }
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[openRouter] API error ${response.status}:`, errorText);
-    throw new Error("Failed to communicate with the AI provider. Please try again.");
-  }
-
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error("AI returned an empty response. Please try again.");
-  }
-  return content;
+  console.error("[openRouter] All fallback models failed:", failures.join(" | "));
+  throw new Error("All AI models are currently unavailable. Please wait a moment and try again.");
 };
 
 // --- Public API ---

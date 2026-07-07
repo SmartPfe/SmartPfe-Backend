@@ -7,6 +7,10 @@ const {
   updateProblemStatement,
   getActors,
   updateActors,
+  getExistingSolutions,
+  updateExistingSolutions,
+  getFunctionalRequirements,
+  updateFunctionalRequirements,
 } = require("../controllers/projectController");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -17,5 +21,9 @@ router.put("/my-project", protect, updateMyProject);
 router.patch("/problem-statement", protect, updateProblemStatement);
 router.get("/:id/actors", protect, getActors);
 router.put("/:id/actors", protect, updateActors);
+router.get("/:id/existing-solutions", protect, getExistingSolutions);
+router.put("/:id/existing-solutions", protect, updateExistingSolutions);
+router.get("/:id/functional-requirements", protect, getFunctionalRequirements);
+router.put("/:id/functional-requirements", protect, updateFunctionalRequirements);
 
 module.exports = router;

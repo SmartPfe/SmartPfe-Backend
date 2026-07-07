@@ -14,6 +14,40 @@ const actorSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const existingSolutionSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    category: { type: String, default: "Existing Solution", trim: true },
+    icon: { type: String, default: "search", trim: true },
+    description: { type: String, required: true, trim: true },
+    solvedProblem: { type: String, required: true, trim: true },
+    strengths: { type: [String], default: [] },
+    weaknesses: { type: [String], default: [] },
+    differentiation: { type: String, required: true, trim: true },
+  },
+  { _id: true }
+);
+
+const functionalRequirementSchema = new mongoose.Schema(
+  {
+    code: { type: String, required: true, trim: true },
+    module: { type: String, required: true, trim: true },
+    title: { type: String, required: true, trim: true },
+    description: { type: String, required: true, trim: true },
+    priority: {
+      type: String,
+      enum: ["Must Have", "Should Have", "Could Have", "Won't Have"],
+      default: "Should Have",
+    },
+    status: {
+      type: String,
+      enum: ["Draft", "In Review", "Approved"],
+      default: "Draft",
+    },
+  },
+  { _id: true }
+);
+
 const projectSchema = new mongoose.Schema(
   {
     user: {
@@ -51,6 +85,14 @@ const projectSchema = new mongoose.Schema(
     },
     actors: {
       type: [actorSchema],
+      default: [],
+    },
+    existingSolutions: {
+      type: [existingSolutionSchema],
+      default: [],
+    },
+    functionalRequirements: {
+      type: [functionalRequirementSchema],
       default: [],
     },
   },

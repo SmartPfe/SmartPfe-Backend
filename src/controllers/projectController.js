@@ -10,6 +10,14 @@ const {
   getFunctionalRequirements: getFunctionalRequirementsService,
   saveFunctionalRequirements: saveFunctionalRequirementsService,
 } = require("../services/functionalRequirementService");
+const {
+  getNonFunctionalRequirements: getNonFunctionalRequirementsService,
+  saveNonFunctionalRequirements: saveNonFunctionalRequirementsService,
+} = require("../services/nonFunctionalRequirementService");
+const {
+  getUmlPreparation: getUmlPreparationService,
+  saveUmlPreparation: saveUmlPreparationService,
+} = require("../services/umlPreparationService");
 
 // @desc    Create a new project from onboarding
 // @route   POST /api/projects/onboarding
@@ -240,6 +248,76 @@ const updateFunctionalRequirements = async (req, res) => {
   }
 };
 
+// @desc    Get non-functional requirements for a project owned by the current user
+// @route   GET /api/projects/:id/non-functional-requirements
+// @access  Private
+const getNonFunctionalRequirements = async (req, res) => {
+  try {
+    const nonFunctionalRequirements = await getNonFunctionalRequirementsService(req.user._id, req.params.id);
+    res.status(200).json({ nonFunctionalRequirements });
+  } catch (error) {
+    console.error("[project] getNonFunctionalRequirements error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
+// @desc    Replace non-functional requirements for a project owned by the current user
+// @route   PUT /api/projects/:id/non-functional-requirements
+// @access  Private
+const updateNonFunctionalRequirements = async (req, res) => {
+  try {
+    const { nonFunctionalRequirements } = req.body;
+    if (!Array.isArray(nonFunctionalRequirements)) {
+      return res.status(400).json({ message: "Non-functional requirements must be an array" });
+    }
+
+    const savedRequirements = await saveNonFunctionalRequirementsService(
+      req.user._id,
+      req.params.id,
+      nonFunctionalRequirements
+    );
+    res.status(200).json({ nonFunctionalRequirements: savedRequirements });
+  } catch (error) {
+    console.error("[project] updateNonFunctionalRequirements error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
+// @desc    Get UML preparation for a project owned by the current user
+// @route   GET /api/projects/:id/uml-preparation
+// @access  Private
+const getUmlPreparation = async (req, res) => {
+  try {
+    const umlPreparation = await getUmlPreparationService(req.user._id, req.params.id);
+    res.status(200).json({ umlPreparation });
+  } catch (error) {
+    console.error("[project] getUmlPreparation error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
+// @desc    Replace UML preparation for a project owned by the current user
+// @route   PUT /api/projects/:id/uml-preparation
+// @access  Private
+const updateUmlPreparation = async (req, res) => {
+  try {
+    const { umlPreparation } = req.body;
+    if (!umlPreparation || typeof umlPreparation !== "object") {
+      return res.status(400).json({ message: "UML preparation must be an object" });
+    }
+
+    const savedPreparation = await saveUmlPreparationService(req.user._id, req.params.id, umlPreparation);
+    res.status(200).json({ umlPreparation: savedPreparation });
+  } catch (error) {
+    console.error("[project] updateUmlPreparation error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
 module.exports = {
   createProject,
   getMyProject,
@@ -251,4 +329,8 @@ module.exports = {
   updateExistingSolutions,
   getFunctionalRequirements,
   updateFunctionalRequirements,
+  getNonFunctionalRequirements,
+  updateNonFunctionalRequirements,
+  getUmlPreparation,
+  updateUmlPreparation,
 };

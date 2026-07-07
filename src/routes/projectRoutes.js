@@ -11,6 +11,10 @@ const {
   updateExistingSolutions,
   getFunctionalRequirements,
   updateFunctionalRequirements,
+  getNonFunctionalRequirements,
+  updateNonFunctionalRequirements,
+  getUmlPreparation,
+  updateUmlPreparation,
 } = require("../controllers/projectController");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -25,5 +29,9 @@ router.get("/:id/existing-solutions", protect, getExistingSolutions);
 router.put("/:id/existing-solutions", protect, updateExistingSolutions);
 router.get("/:id/functional-requirements", protect, getFunctionalRequirements);
 router.put("/:id/functional-requirements", protect, updateFunctionalRequirements);
+router.get("/:id/non-functional-requirements", protect, getNonFunctionalRequirements);
+router.put("/:id/non-functional-requirements", protect, updateNonFunctionalRequirements);
+router.get("/:id/uml-preparation", protect, getUmlPreparation);
+router.put("/:id/uml-preparation", protect, updateUmlPreparation);
 
 module.exports = router;

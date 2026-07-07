@@ -9,6 +9,10 @@ const {
   refineExistingSolutions,
   generateFunctionalRequirements,
   refineFunctionalRequirements,
+  generateNonFunctionalRequirements,
+  refineNonFunctionalRequirements,
+  generateUmlPreparation,
+  refineUmlPreparation,
 } = require("../controllers/aiController");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -20,5 +24,9 @@ router.post("/existing-solutions/generate", protect, generateExistingSolutions);
 router.post("/existing-solutions/refine", protect, refineExistingSolutions);
 router.post("/functional-requirements/generate", protect, generateFunctionalRequirements);
 router.post("/functional-requirements/refine", protect, refineFunctionalRequirements);
+router.post("/non-functional-requirements/generate", protect, generateNonFunctionalRequirements);
+router.post("/non-functional-requirements/refine", protect, refineNonFunctionalRequirements);
+router.post("/uml-preparation/generate", protect, generateUmlPreparation);
+router.post("/uml-preparation/refine", protect, refineUmlPreparation);
 
 module.exports = router;

@@ -48,6 +48,115 @@ const functionalRequirementSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const nonFunctionalRequirementSchema = new mongoose.Schema(
+  {
+    code: { type: String, required: true, trim: true },
+    category: { type: String, required: true, trim: true },
+    title: { type: String, required: true, trim: true },
+    description: { type: String, required: true, trim: true },
+    priority: {
+      type: String,
+      enum: ["Must Have", "Should Have", "Could Have", "Won't Have"],
+      default: "Should Have",
+    },
+    status: {
+      type: String,
+      enum: ["Draft", "In Review", "Approved"],
+      default: "Draft",
+    },
+  },
+  { _id: true }
+);
+
+const umlClassSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    type: { type: String, default: "Class", trim: true },
+    description: { type: String, default: "", trim: true },
+    attributes: { type: [String], default: [] },
+    methods: { type: [String], default: [] },
+  },
+  { _id: true }
+);
+
+const umlRelationshipSchema = new mongoose.Schema(
+  {
+    source: { type: String, required: true, trim: true },
+    target: { type: String, required: true, trim: true },
+    type: {
+      type: String,
+      enum: ["association", "inheritance", "composition", "aggregation", "dependency"],
+      default: "association",
+    },
+    label: { type: String, default: "", trim: true },
+    sourceMultiplicity: { type: String, default: "", trim: true },
+    targetMultiplicity: { type: String, default: "", trim: true },
+  },
+  { _id: true }
+);
+
+const umlUseCaseSchema = new mongoose.Schema(
+  {
+    actors: { type: [String], default: [] },
+    useCases: { type: [String], default: [] },
+    links: {
+      type: [
+        {
+          actor: { type: String, trim: true },
+          useCase: { type: String, trim: true },
+        },
+      ],
+      default: [],
+    },
+  },
+  { _id: false }
+);
+
+const umlSequenceSchema = new mongoose.Schema(
+  {
+    participants: { type: [String], default: [] },
+    messages: {
+      type: [
+        {
+          source: { type: String, trim: true },
+          target: { type: String, trim: true },
+          message: { type: String, trim: true },
+          response: { type: Boolean, default: false },
+        },
+      ],
+      default: [],
+    },
+  },
+  { _id: false }
+);
+
+const umlActivitySchema = new mongoose.Schema(
+  {
+    transitions: {
+      type: [
+        {
+          from: { type: String, trim: true },
+          to: { type: String, trim: true },
+          label: { type: String, default: "", trim: true },
+        },
+      ],
+      default: [],
+    },
+  },
+  { _id: false }
+);
+
+const umlPreparationSchema = new mongoose.Schema(
+  {
+    classes: { type: [umlClassSchema], default: [] },
+    relationships: { type: [umlRelationshipSchema], default: [] },
+    useCase: { type: umlUseCaseSchema, default: () => ({}) },
+    sequence: { type: umlSequenceSchema, default: () => ({}) },
+    activity: { type: umlActivitySchema, default: () => ({}) },
+  },
+  { _id: false }
+);
+
 const projectSchema = new mongoose.Schema(
   {
     user: {
@@ -94,6 +203,14 @@ const projectSchema = new mongoose.Schema(
     functionalRequirements: {
       type: [functionalRequirementSchema],
       default: [],
+    },
+    nonFunctionalRequirements: {
+      type: [nonFunctionalRequirementSchema],
+      default: [],
+    },
+    umlPreparation: {
+      type: umlPreparationSchema,
+      default: () => ({}),
     },
   },
   { timestamps: true }

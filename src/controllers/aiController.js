@@ -12,6 +12,14 @@ const {
   generateFunctionalRequirements: generateFunctionalRequirementsService,
   refineFunctionalRequirements: refineFunctionalRequirementsService,
 } = require("../services/functionalRequirementService");
+const {
+  generateNonFunctionalRequirements: generateNonFunctionalRequirementsService,
+  refineNonFunctionalRequirements: refineNonFunctionalRequirementsService,
+} = require("../services/nonFunctionalRequirementService");
+const {
+  generateUmlPreparation: generateUmlPreparationService,
+  refineUmlPreparation: refineUmlPreparationService,
+} = require("../services/umlPreparationService");
 
 // @desc    Generate a first draft of the problem statement using AI
 // @route   POST /api/ai/problem-statement/generate
@@ -177,6 +185,88 @@ const refineFunctionalRequirements = async (req, res) => {
   }
 };
 
+// @desc    Generate non-functional requirements using AI
+// @route   POST /api/ai/non-functional-requirements/generate
+// @access  Private
+const generateNonFunctionalRequirements = async (req, res) => {
+  try {
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const nonFunctionalRequirements = await generateNonFunctionalRequirementsService(project);
+    res.status(200).json({ nonFunctionalRequirements });
+  } catch (error) {
+    console.error("[ai] generate non-functional requirements error:", error.message);
+    res.status(500).json({ message: error.message || "AI non-functional requirement generation failed." });
+  }
+};
+
+// @desc    Refine non-functional requirements using AI
+// @route   POST /api/ai/non-functional-requirements/refine
+// @access  Private
+const refineNonFunctionalRequirements = async (req, res) => {
+  try {
+    const { nonFunctionalRequirements } = req.body;
+    if (!Array.isArray(nonFunctionalRequirements) || nonFunctionalRequirements.length === 0) {
+      return res.status(400).json({ message: "Current non-functional requirements are required to refine." });
+    }
+
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const refinedRequirements = await refineNonFunctionalRequirementsService(project, nonFunctionalRequirements);
+    res.status(200).json({ nonFunctionalRequirements: refinedRequirements });
+  } catch (error) {
+    console.error("[ai] refine non-functional requirements error:", error.message);
+    res.status(500).json({ message: error.message || "AI non-functional requirement refinement failed." });
+  }
+};
+
+// @desc    Generate UML preparation using AI
+// @route   POST /api/ai/uml-preparation/generate
+// @access  Private
+const generateUmlPreparation = async (req, res) => {
+  try {
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const umlPreparation = await generateUmlPreparationService(project);
+    res.status(200).json({ umlPreparation });
+  } catch (error) {
+    console.error("[ai] generate UML preparation error:", error.message);
+    res.status(500).json({ message: error.message || "AI UML preparation generation failed." });
+  }
+};
+
+// @desc    Refine UML preparation using AI
+// @route   POST /api/ai/uml-preparation/refine
+// @access  Private
+const refineUmlPreparation = async (req, res) => {
+  try {
+    const { umlPreparation } = req.body;
+    if (!umlPreparation || !Array.isArray(umlPreparation.classes) || umlPreparation.classes.length === 0) {
+      return res.status(400).json({ message: "Current UML preparation is required to refine." });
+    }
+
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const refinedPreparation = await refineUmlPreparationService(project, umlPreparation);
+    res.status(200).json({ umlPreparation: refinedPreparation });
+  } catch (error) {
+    console.error("[ai] refine UML preparation error:", error.message);
+    res.status(500).json({ message: error.message || "AI UML preparation refinement failed." });
+  }
+};
+
 module.exports = {
   generateProblemStatement,
   refineProblemStatement,
@@ -186,4 +276,8 @@ module.exports = {
   refineExistingSolutions,
   generateFunctionalRequirements,
   refineFunctionalRequirements,
+  generateNonFunctionalRequirements,
+  refineNonFunctionalRequirements,
+  generateUmlPreparation,
+  refineUmlPreparation,
 };

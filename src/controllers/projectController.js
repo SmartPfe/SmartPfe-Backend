@@ -15,6 +15,10 @@ const {
   saveNonFunctionalRequirements: saveNonFunctionalRequirementsService,
 } = require("../services/nonFunctionalRequirementService");
 const {
+  getProductBacklog: getProductBacklogService,
+  saveProductBacklog: saveProductBacklogService,
+} = require("../services/productBacklogService");
+const {
   getUmlPreparation: getUmlPreparationService,
   saveUmlPreparation: saveUmlPreparationService,
 } = require("../services/umlPreparationService");
@@ -285,6 +289,43 @@ const updateNonFunctionalRequirements = async (req, res) => {
   }
 };
 
+// @desc    Get product backlog for a project owned by the current user
+// @route   GET /api/projects/:id/product-backlog
+// @access  Private
+const getProductBacklog = async (req, res) => {
+  try {
+    const productBacklog = await getProductBacklogService(req.user._id, req.params.id);
+    res.status(200).json({ productBacklog });
+  } catch (error) {
+    console.error("[project] getProductBacklog error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
+// @desc    Replace product backlog for a project owned by the current user
+// @route   PUT /api/projects/:id/product-backlog
+// @access  Private
+const updateProductBacklog = async (req, res) => {
+  try {
+    const { productBacklog } = req.body;
+    if (!Array.isArray(productBacklog)) {
+      return res.status(400).json({ message: "Product backlog must be an array" });
+    }
+
+    const savedBacklog = await saveProductBacklogService(
+      req.user._id,
+      req.params.id,
+      productBacklog
+    );
+    res.status(200).json({ productBacklog: savedBacklog });
+  } catch (error) {
+    console.error("[project] updateProductBacklog error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
 // @desc    Get UML preparation for a project owned by the current user
 // @route   GET /api/projects/:id/uml-preparation
 // @access  Private
@@ -331,6 +372,8 @@ module.exports = {
   updateFunctionalRequirements,
   getNonFunctionalRequirements,
   updateNonFunctionalRequirements,
+  getProductBacklog,
+  updateProductBacklog,
   getUmlPreparation,
   updateUmlPreparation,
 };

@@ -68,6 +68,23 @@ const nonFunctionalRequirementSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const productBacklogItemSchema = new mongoose.Schema(
+  {
+    code: { type: String, required: true, trim: true },
+    epic: { type: String, required: true, trim: true },
+    task: { type: String, required: true, trim: true },
+    priority: {
+      type: String,
+      enum: ["High", "Medium", "Low"],
+      default: "Medium",
+    },
+    durationDays: { type: Number, required: true, min: 1 },
+    sprint: { type: String, default: "", trim: true },
+    notes: { type: String, default: "", trim: true },
+  },
+  { _id: true }
+);
+
 const umlClassSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -206,6 +223,10 @@ const projectSchema = new mongoose.Schema(
     },
     nonFunctionalRequirements: {
       type: [nonFunctionalRequirementSchema],
+      default: [],
+    },
+    productBacklog: {
+      type: [productBacklogItemSchema],
       default: [],
     },
     umlPreparation: {

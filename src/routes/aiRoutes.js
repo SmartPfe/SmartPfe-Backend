@@ -11,6 +11,8 @@ const {
   refineFunctionalRequirements,
   generateNonFunctionalRequirements,
   refineNonFunctionalRequirements,
+  generateProductBacklog,
+  refineProductBacklog,
   generateUmlPreparation,
   refineUmlPreparation,
 } = require("../controllers/aiController");
@@ -26,6 +28,8 @@ router.post("/functional-requirements/generate", protect, generateFunctionalRequ
 router.post("/functional-requirements/refine", protect, refineFunctionalRequirements);
 router.post("/non-functional-requirements/generate", protect, generateNonFunctionalRequirements);
 router.post("/non-functional-requirements/refine", protect, refineNonFunctionalRequirements);
+router.post("/product-backlog/generate", protect, generateProductBacklog);
+router.post("/product-backlog/refine", protect, refineProductBacklog);
 router.post("/uml-preparation/generate", protect, generateUmlPreparation);
 router.post("/uml-preparation/refine", protect, refineUmlPreparation);
 

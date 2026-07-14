@@ -17,6 +17,10 @@ const {
   refineNonFunctionalRequirements: refineNonFunctionalRequirementsService,
 } = require("../services/nonFunctionalRequirementService");
 const {
+  generateProductBacklog: generateProductBacklogService,
+  refineProductBacklog: refineProductBacklogService,
+} = require("../services/productBacklogService");
+const {
   generateUmlPreparation: generateUmlPreparationService,
   refineUmlPreparation: refineUmlPreparationService,
 } = require("../services/umlPreparationService");
@@ -226,6 +230,47 @@ const refineNonFunctionalRequirements = async (req, res) => {
   }
 };
 
+// @desc    Generate product backlog using AI
+// @route   POST /api/ai/product-backlog/generate
+// @access  Private
+const generateProductBacklog = async (req, res) => {
+  try {
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const productBacklog = await generateProductBacklogService(project);
+    res.status(200).json({ productBacklog });
+  } catch (error) {
+    console.error("[ai] generate product backlog error:", error.message);
+    res.status(500).json({ message: error.message || "AI product backlog generation failed." });
+  }
+};
+
+// @desc    Refine product backlog using AI
+// @route   POST /api/ai/product-backlog/refine
+// @access  Private
+const refineProductBacklog = async (req, res) => {
+  try {
+    const { productBacklog } = req.body;
+    if (!Array.isArray(productBacklog) || productBacklog.length === 0) {
+      return res.status(400).json({ message: "Current product backlog is required to refine." });
+    }
+
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const refinedBacklog = await refineProductBacklogService(project, productBacklog);
+    res.status(200).json({ productBacklog: refinedBacklog });
+  } catch (error) {
+    console.error("[ai] refine product backlog error:", error.message);
+    res.status(500).json({ message: error.message || "AI product backlog refinement failed." });
+  }
+};
+
 // @desc    Generate UML preparation using AI
 // @route   POST /api/ai/uml-preparation/generate
 // @access  Private
@@ -278,6 +323,8 @@ module.exports = {
   refineFunctionalRequirements,
   generateNonFunctionalRequirements,
   refineNonFunctionalRequirements,
+  generateProductBacklog,
+  refineProductBacklog,
   generateUmlPreparation,
   refineUmlPreparation,
 };

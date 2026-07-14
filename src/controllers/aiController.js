@@ -21,6 +21,10 @@ const {
   refineProductBacklog: refineProductBacklogService,
 } = require("../services/productBacklogService");
 const {
+  generateReportStructure: generateReportStructureService,
+  refineReportStructure: refineReportStructureService,
+} = require("../services/reportStructureService");
+const {
   generateUmlPreparation: generateUmlPreparationService,
   refineUmlPreparation: refineUmlPreparationService,
 } = require("../services/umlPreparationService");
@@ -271,6 +275,47 @@ const refineProductBacklog = async (req, res) => {
   }
 };
 
+// @desc    Generate report structure using AI
+// @route   POST /api/ai/report-structure/generate
+// @access  Private
+const generateReportStructure = async (req, res) => {
+  try {
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const reportStructure = await generateReportStructureService(project);
+    res.status(200).json({ reportStructure });
+  } catch (error) {
+    console.error("[ai] generate report structure error:", error.message);
+    res.status(500).json({ message: error.message || "AI report structure generation failed." });
+  }
+};
+
+// @desc    Refine report structure using AI
+// @route   POST /api/ai/report-structure/refine
+// @access  Private
+const refineReportStructure = async (req, res) => {
+  try {
+    const { reportStructure } = req.body;
+    if (!Array.isArray(reportStructure) || reportStructure.length === 0) {
+      return res.status(400).json({ message: "Current report structure is required to refine." });
+    }
+
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const refinedStructure = await refineReportStructureService(project, reportStructure);
+    res.status(200).json({ reportStructure: refinedStructure });
+  } catch (error) {
+    console.error("[ai] refine report structure error:", error.message);
+    res.status(500).json({ message: error.message || "AI report structure refinement failed." });
+  }
+};
+
 // @desc    Generate UML preparation using AI
 // @route   POST /api/ai/uml-preparation/generate
 // @access  Private
@@ -325,6 +370,8 @@ module.exports = {
   refineNonFunctionalRequirements,
   generateProductBacklog,
   refineProductBacklog,
+  generateReportStructure,
+  refineReportStructure,
   generateUmlPreparation,
   refineUmlPreparation,
 };

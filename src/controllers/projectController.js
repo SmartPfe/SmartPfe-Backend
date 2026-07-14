@@ -19,6 +19,10 @@ const {
   saveProductBacklog: saveProductBacklogService,
 } = require("../services/productBacklogService");
 const {
+  getReportStructure: getReportStructureService,
+  saveReportStructure: saveReportStructureService,
+} = require("../services/reportStructureService");
+const {
   getUmlPreparation: getUmlPreparationService,
   saveUmlPreparation: saveUmlPreparationService,
 } = require("../services/umlPreparationService");
@@ -326,6 +330,43 @@ const updateProductBacklog = async (req, res) => {
   }
 };
 
+// @desc    Get report structure for a project owned by the current user
+// @route   GET /api/projects/:id/report-structure
+// @access  Private
+const getReportStructure = async (req, res) => {
+  try {
+    const reportStructure = await getReportStructureService(req.user._id, req.params.id);
+    res.status(200).json({ reportStructure });
+  } catch (error) {
+    console.error("[project] getReportStructure error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
+// @desc    Replace report structure for a project owned by the current user
+// @route   PUT /api/projects/:id/report-structure
+// @access  Private
+const updateReportStructure = async (req, res) => {
+  try {
+    const { reportStructure } = req.body;
+    if (!Array.isArray(reportStructure)) {
+      return res.status(400).json({ message: "Report structure must be an array" });
+    }
+
+    const savedStructure = await saveReportStructureService(
+      req.user._id,
+      req.params.id,
+      reportStructure
+    );
+    res.status(200).json({ reportStructure: savedStructure });
+  } catch (error) {
+    console.error("[project] updateReportStructure error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
 // @desc    Get UML preparation for a project owned by the current user
 // @route   GET /api/projects/:id/uml-preparation
 // @access  Private
@@ -374,6 +415,8 @@ module.exports = {
   updateNonFunctionalRequirements,
   getProductBacklog,
   updateProductBacklog,
+  getReportStructure,
+  updateReportStructure,
   getUmlPreparation,
   updateUmlPreparation,
 };

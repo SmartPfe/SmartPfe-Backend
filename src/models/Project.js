@@ -174,6 +174,19 @@ const umlPreparationSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const reportSectionSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true, trim: true },
+    title: { type: String, required: true, trim: true },
+    collapsed: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
+
+reportSectionSchema.add({
+  children: { type: [reportSectionSchema], default: [] },
+});
+
 const projectSchema = new mongoose.Schema(
   {
     user: {
@@ -232,6 +245,10 @@ const projectSchema = new mongoose.Schema(
     umlPreparation: {
       type: umlPreparationSchema,
       default: () => ({}),
+    },
+    reportStructure: {
+      type: [reportSectionSchema],
+      default: [],
     },
   },
   { timestamps: true }

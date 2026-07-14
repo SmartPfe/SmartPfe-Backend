@@ -15,6 +15,8 @@ const {
   updateNonFunctionalRequirements,
   getProductBacklog,
   updateProductBacklog,
+  getReportStructure,
+  updateReportStructure,
   getUmlPreparation,
   updateUmlPreparation,
 } = require("../controllers/projectController");
@@ -35,6 +37,8 @@ router.get("/:id/non-functional-requirements", protect, getNonFunctionalRequirem
 router.put("/:id/non-functional-requirements", protect, updateNonFunctionalRequirements);
 router.get("/:id/product-backlog", protect, getProductBacklog);
 router.put("/:id/product-backlog", protect, updateProductBacklog);
+router.get("/:id/report-structure", protect, getReportStructure);
+router.put("/:id/report-structure", protect, updateReportStructure);
 router.get("/:id/uml-preparation", protect, getUmlPreparation);
 router.put("/:id/uml-preparation", protect, updateUmlPreparation);
 

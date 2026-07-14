@@ -13,6 +13,8 @@ const {
   refineNonFunctionalRequirements,
   generateProductBacklog,
   refineProductBacklog,
+  generateReportStructure,
+  refineReportStructure,
   generateUmlPreparation,
   refineUmlPreparation,
 } = require("../controllers/aiController");
@@ -30,6 +32,8 @@ router.post("/non-functional-requirements/generate", protect, generateNonFunctio
 router.post("/non-functional-requirements/refine", protect, refineNonFunctionalRequirements);
 router.post("/product-backlog/generate", protect, generateProductBacklog);
 router.post("/product-backlog/refine", protect, refineProductBacklog);
+router.post("/report-structure/generate", protect, generateReportStructure);
+router.post("/report-structure/refine", protect, refineReportStructure);
 router.post("/uml-preparation/generate", protect, generateUmlPreparation);
 router.post("/uml-preparation/refine", protect, refineUmlPreparation);
 

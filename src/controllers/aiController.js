@@ -25,6 +25,12 @@ const {
   refineReportStructure: refineReportStructureService,
 } = require("../services/reportStructureService");
 const {
+  generateChapter: generateReportChapterService,
+  applyChapterAction: applyReportChapterActionService,
+  generateCompleteReport: generateCompleteReportService,
+  saveFinalReport: saveFinalReportService,
+} = require("../services/reportStudioService");
+const {
   generateUmlPreparation: generateUmlPreparationService,
   refineUmlPreparation: refineUmlPreparationService,
 } = require("../services/umlPreparationService");
@@ -316,6 +322,79 @@ const refineReportStructure = async (req, res) => {
   }
 };
 
+// @desc    Generate one report chapter using AI
+// @route   POST /api/ai/report-studio/chapter/generate
+// @access  Private
+const generateReportChapter = async (req, res) => {
+  try {
+    const { sectionId, detailLevel = "standard", reportChapters = [] } = req.body;
+    if (!sectionId) {
+      return res.status(400).json({ message: "Section id is required." });
+    }
+
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const chapter = await generateReportChapterService(project, sectionId, detailLevel, reportChapters);
+    res.status(200).json({ chapter });
+  } catch (error) {
+    console.error("[ai] generate report chapter error:", error.message);
+    res.status(500).json({ message: error.message || "AI report chapter generation failed." });
+  }
+};
+
+// @desc    Apply an AI writing action to one report chapter
+// @route   POST /api/ai/report-studio/chapter/action
+// @access  Private
+const applyReportChapterAction = async (req, res) => {
+  try {
+    const { sectionId, action, currentContent, selectedText = "", reportChapters = [] } = req.body;
+    if (!sectionId || !action || !currentContent) {
+      return res.status(400).json({ message: "Section id, action, and current content are required." });
+    }
+
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const chapter = await applyReportChapterActionService(
+      project,
+      sectionId,
+      action,
+      currentContent,
+      selectedText,
+      reportChapters
+    );
+    res.status(200).json({ chapter });
+  } catch (error) {
+    console.error("[ai] apply report chapter action error:", error.message);
+    res.status(500).json({ message: error.message || "AI report chapter action failed." });
+  }
+};
+
+// @desc    Generate the polished complete report using AI
+// @route   POST /api/ai/report-studio/final/generate
+// @access  Private
+const generateCompleteReport = async (req, res) => {
+  try {
+    const { reportChapters = [] } = req.body;
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const finalReport = await generateCompleteReportService(project, reportChapters);
+    const savedFinalReport = await saveFinalReportService(req.user._id, project._id, finalReport);
+    res.status(200).json({ finalReport: savedFinalReport });
+  } catch (error) {
+    console.error("[ai] generate complete report error:", error.message);
+    res.status(500).json({ message: error.message || "AI final report generation failed." });
+  }
+};
+
 // @desc    Generate UML preparation using AI
 // @route   POST /api/ai/uml-preparation/generate
 // @access  Private
@@ -372,6 +451,9 @@ module.exports = {
   refineProductBacklog,
   generateReportStructure,
   refineReportStructure,
+  generateReportChapter,
+  applyReportChapterAction,
+  generateCompleteReport,
   generateUmlPreparation,
   refineUmlPreparation,
 };

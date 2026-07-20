@@ -15,6 +15,9 @@ const {
   refineProductBacklog,
   generateReportStructure,
   refineReportStructure,
+  generateReportChapter,
+  applyReportChapterAction,
+  generateCompleteReport,
   generateUmlPreparation,
   refineUmlPreparation,
 } = require("../controllers/aiController");
@@ -34,6 +37,9 @@ router.post("/product-backlog/generate", protect, generateProductBacklog);
 router.post("/product-backlog/refine", protect, refineProductBacklog);
 router.post("/report-structure/generate", protect, generateReportStructure);
 router.post("/report-structure/refine", protect, refineReportStructure);
+router.post("/report-studio/chapter/generate", protect, generateReportChapter);
+router.post("/report-studio/chapter/action", protect, applyReportChapterAction);
+router.post("/report-studio/final/generate", protect, generateCompleteReport);
 router.post("/uml-preparation/generate", protect, generateUmlPreparation);
 router.post("/uml-preparation/refine", protect, refineUmlPreparation);
 

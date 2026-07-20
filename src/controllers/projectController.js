@@ -23,6 +23,11 @@ const {
   saveReportStructure: saveReportStructureService,
 } = require("../services/reportStructureService");
 const {
+  getReportChapters: getReportChaptersService,
+  saveReportChapters: saveReportChaptersService,
+  saveFinalReport: saveFinalReportService,
+} = require("../services/reportStudioService");
+const {
   getUmlPreparation: getUmlPreparationService,
   saveUmlPreparation: saveUmlPreparationService,
 } = require("../services/umlPreparationService");
@@ -367,6 +372,58 @@ const updateReportStructure = async (req, res) => {
   }
 };
 
+// @desc    Get report studio chapters for a project owned by the current user
+// @route   GET /api/projects/:id/report-chapters
+// @access  Private
+const getReportChapters = async (req, res) => {
+  try {
+    const payload = await getReportChaptersService(req.user._id, req.params.id);
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error("[project] getReportChapters error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
+// @desc    Replace report studio chapters for a project owned by the current user
+// @route   PUT /api/projects/:id/report-chapters
+// @access  Private
+const updateReportChapters = async (req, res) => {
+  try {
+    const { reportChapters } = req.body;
+    if (!Array.isArray(reportChapters)) {
+      return res.status(400).json({ message: "Report chapters must be an array" });
+    }
+
+    const payload = await saveReportChaptersService(req.user._id, req.params.id, reportChapters);
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error("[project] updateReportChapters error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
+// @desc    Save final generated report for a project owned by the current user
+// @route   PUT /api/projects/:id/final-report
+// @access  Private
+const updateFinalReport = async (req, res) => {
+  try {
+    const { finalReport } = req.body;
+    if (!finalReport || typeof finalReport !== "object") {
+      return res.status(400).json({ message: "Final report must be an object" });
+    }
+
+    const savedFinalReport = await saveFinalReportService(req.user._id, req.params.id, finalReport);
+    res.status(200).json({ finalReport: savedFinalReport });
+  } catch (error) {
+    console.error("[project] updateFinalReport error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
 // @desc    Get UML preparation for a project owned by the current user
 // @route   GET /api/projects/:id/uml-preparation
 // @access  Private
@@ -417,6 +474,9 @@ module.exports = {
   updateProductBacklog,
   getReportStructure,
   updateReportStructure,
+  getReportChapters,
+  updateReportChapters,
+  updateFinalReport,
   getUmlPreparation,
   updateUmlPreparation,
 };

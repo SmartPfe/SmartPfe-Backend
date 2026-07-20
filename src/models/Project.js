@@ -187,6 +187,25 @@ reportSectionSchema.add({
   children: { type: [reportSectionSchema], default: [] },
 });
 
+const reportChapterSchema = new mongoose.Schema(
+  {
+    sectionId: { type: String, required: true, trim: true },
+    title: { type: String, required: true, trim: true },
+    contentHtml: { type: String, default: "" },
+    contentMarkdown: { type: String, default: "" },
+    contentLatex: { type: String, default: "" },
+    status: {
+      type: String,
+      enum: ["not-started", "in-progress", "completed"],
+      default: "not-started",
+    },
+    generatedFrom: { type: [String], default: [] },
+    sourceFingerprint: { type: String, default: "" },
+    lastModified: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
 const projectSchema = new mongoose.Schema(
   {
     user: {
@@ -249,6 +268,17 @@ const projectSchema = new mongoose.Schema(
     reportStructure: {
       type: [reportSectionSchema],
       default: [],
+    },
+    reportChapters: {
+      type: [reportChapterSchema],
+      default: [],
+    },
+    finalReport: {
+      contentHtml: { type: String, default: "" },
+      contentMarkdown: { type: String, default: "" },
+      contentLatex: { type: String, default: "" },
+      generatedAt: { type: Date },
+      sourceFingerprint: { type: String, default: "" },
     },
   },
   { timestamps: true }

@@ -17,6 +17,9 @@ const {
   updateProductBacklog,
   getReportStructure,
   updateReportStructure,
+  getReportChapters,
+  updateReportChapters,
+  updateFinalReport,
   getUmlPreparation,
   updateUmlPreparation,
 } = require("../controllers/projectController");
@@ -39,6 +42,9 @@ router.get("/:id/product-backlog", protect, getProductBacklog);
 router.put("/:id/product-backlog", protect, updateProductBacklog);
 router.get("/:id/report-structure", protect, getReportStructure);
 router.put("/:id/report-structure", protect, updateReportStructure);
+router.get("/:id/report-chapters", protect, getReportChapters);
+router.put("/:id/report-chapters", protect, updateReportChapters);
+router.put("/:id/final-report", protect, updateFinalReport);
 router.get("/:id/uml-preparation", protect, getUmlPreparation);
 router.put("/:id/uml-preparation", protect, updateUmlPreparation);
 

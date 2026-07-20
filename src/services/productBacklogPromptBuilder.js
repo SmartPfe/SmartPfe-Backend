@@ -55,7 +55,7 @@ Strict JSON format:
     {
       "code": "PB-01",
       "epic": "Analysis",
-      "task": "Write a clear task that can appear in a PFE report backlog.",
+      "task": "As a project manager, I want to define the project scope so that the team has a clear roadmap.",
       "priority": "High",
       "durationDays": 5,
       "sprint": "Sprint 1",
@@ -71,12 +71,15 @@ const buildRules = (project) => {
 Rules:
 - Generate a professional Product Backlog for a final-year project report, not a todo app.
 - Each row must be a concrete project task, implementation task, analysis task, design task, testing task, documentation task, or deployment task.
+- IMPORTANT FORMAT REQUIREMENT: Each task MUST be written in User Story format.
+  - If output language is English: "As a <actor>, I want to <goal>, so that <benefit>." (the "so that" part is optional if it doesn't add value).
+  - If output language is French: "En tant que <acteur>, je veux <objectif> afin de <bénéfice>."
 - Use enough tasks for a real PFE project. Small projects: 14-18 tasks. Medium projects: 18-26 tasks. Complex projects: 26-36 tasks.
 - The total durationDays across all tasks must be approximately ${targetDays} days, based on the onboarding duration (${project.technicalContext?.duration || "unknown"} month(s)).
 - Distribute durations realistically: analysis/design/documentation tasks are usually 2-8 days; implementation tasks can be 4-15 days; testing/deployment tasks are usually 2-8 days.
 - Cover the full PFE lifecycle: analysis, requirements, design, implementation, testing, report writing, presentation preparation, and deployment when relevant.
 - Use previous context: project description, problem statement, actors, existing solutions, functional requirements, non-functional requirements, technologies, methodology, and target users.
-- Keep task names clear, report-oriented, and specific to the project.
+- Keep task names clear, formatted as user stories, and specific to the project.
 - priority must be exactly one of: "High", "Medium", "Low".
 - durationDays must be a positive integer.
 - Codes must be sequential: PB-01, PB-02, PB-03, and so on.

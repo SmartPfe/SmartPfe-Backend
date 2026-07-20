@@ -20,6 +20,8 @@ const {
   generateCompleteReport,
   generateUmlPreparation,
   refineUmlPreparation,
+  generatePresentation,
+  refinePresentation,
 } = require("../controllers/aiController");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -42,5 +44,7 @@ router.post("/report-studio/chapter/action", protect, applyReportChapterAction);
 router.post("/report-studio/final/generate", protect, generateCompleteReport);
 router.post("/uml-preparation/generate", protect, generateUmlPreparation);
 router.post("/uml-preparation/refine", protect, refineUmlPreparation);
+router.post("/presentation/generate", protect, generatePresentation);
+router.post("/presentation/refine", protect, refinePresentation);
 
 module.exports = router;

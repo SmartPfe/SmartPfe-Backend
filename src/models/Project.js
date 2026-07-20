@@ -206,6 +206,16 @@ const reportChapterSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const presentationSlideSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true, trim: true },
+    title: { type: String, required: true, trim: true },
+    bullets: { type: [String], default: [] },
+    notes: { type: String, default: "" },
+  },
+  { _id: false }
+);
+
 const projectSchema = new mongoose.Schema(
   {
     user: {
@@ -279,6 +289,12 @@ const projectSchema = new mongoose.Schema(
       contentLatex: { type: String, default: "" },
       generatedAt: { type: Date },
       sourceFingerprint: { type: String, default: "" },
+    },
+    presentation: {
+      durationMinutes: { type: Number, enum: [5, 10, 15, 20], default: 10 },
+      slides: { type: [presentationSlideSchema], default: [] },
+      sourceFingerprint: { type: String, default: "" },
+      updatedAt: { type: Date },
     },
   },
   { timestamps: true }

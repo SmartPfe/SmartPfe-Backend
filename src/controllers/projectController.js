@@ -31,6 +31,10 @@ const {
   getUmlPreparation: getUmlPreparationService,
   saveUmlPreparation: saveUmlPreparationService,
 } = require("../services/umlPreparationService");
+const {
+  getPresentation: getPresentationService,
+  savePresentation: savePresentationService,
+} = require("../services/presentationService");
 
 // @desc    Create a new project from onboarding
 // @route   POST /api/projects/onboarding
@@ -457,6 +461,39 @@ const updateUmlPreparation = async (req, res) => {
   }
 };
 
+// @desc    Get presentation for a project owned by the current user
+// @route   GET /api/projects/:id/presentation
+// @access  Private
+const getPresentation = async (req, res) => {
+  try {
+    const presentation = await getPresentationService(req.user._id, req.params.id);
+    res.status(200).json({ presentation });
+  } catch (error) {
+    console.error("[project] getPresentation error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
+// @desc    Replace presentation for a project owned by the current user
+// @route   PUT /api/projects/:id/presentation
+// @access  Private
+const updatePresentation = async (req, res) => {
+  try {
+    const { presentation } = req.body;
+    if (!presentation || typeof presentation !== "object") {
+      return res.status(400).json({ message: "Presentation must be an object" });
+    }
+
+    const savedPresentation = await savePresentationService(req.user._id, req.params.id, presentation);
+    res.status(200).json({ presentation: savedPresentation });
+  } catch (error) {
+    console.error("[project] updatePresentation error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
 module.exports = {
   createProject,
   getMyProject,
@@ -479,4 +516,6 @@ module.exports = {
   updateFinalReport,
   getUmlPreparation,
   updateUmlPreparation,
+  getPresentation,
+  updatePresentation,
 };

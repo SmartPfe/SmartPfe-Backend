@@ -34,6 +34,10 @@ const {
   generateUmlPreparation: generateUmlPreparationService,
   refineUmlPreparation: refineUmlPreparationService,
 } = require("../services/umlPreparationService");
+const {
+  generatePresentation: generatePresentationService,
+  refinePresentation: refinePresentationService,
+} = require("../services/presentationService");
 
 // @desc    Generate a first draft of the problem statement using AI
 // @route   POST /api/ai/problem-statement/generate
@@ -436,6 +440,48 @@ const refineUmlPreparation = async (req, res) => {
   }
 };
 
+// @desc    Generate a PFE defense presentation using AI
+// @route   POST /api/ai/presentation/generate
+// @access  Private
+const generatePresentation = async (req, res) => {
+  try {
+    const { durationMinutes = 10 } = req.body;
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const presentation = await generatePresentationService(project, durationMinutes);
+    res.status(200).json({ presentation });
+  } catch (error) {
+    console.error("[ai] generate presentation error:", error.message);
+    res.status(500).json({ message: error.message || "AI presentation generation failed." });
+  }
+};
+
+// @desc    Refine a PFE defense presentation using AI
+// @route   POST /api/ai/presentation/refine
+// @access  Private
+const refinePresentation = async (req, res) => {
+  try {
+    const { presentation } = req.body;
+    if (!presentation || !Array.isArray(presentation.slides) || presentation.slides.length === 0) {
+      return res.status(400).json({ message: "Current presentation is required to refine." });
+    }
+
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const refinedPresentation = await refinePresentationService(project, presentation);
+    res.status(200).json({ presentation: refinedPresentation });
+  } catch (error) {
+    console.error("[ai] refine presentation error:", error.message);
+    res.status(500).json({ message: error.message || "AI presentation refinement failed." });
+  }
+};
+
 module.exports = {
   generateProblemStatement,
   refineProblemStatement,
@@ -456,4 +502,6 @@ module.exports = {
   generateCompleteReport,
   generateUmlPreparation,
   refineUmlPreparation,
+  generatePresentation,
+  refinePresentation,
 };

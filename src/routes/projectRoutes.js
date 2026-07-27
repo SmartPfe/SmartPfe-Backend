@@ -24,6 +24,8 @@ const {
   updateUmlPreparation,
   getPresentation,
   updatePresentation,
+  getPitch,
+  updatePitch,
 } = require("../controllers/projectController");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -51,5 +53,7 @@ router.get("/:id/uml-preparation", protect, getUmlPreparation);
 router.put("/:id/uml-preparation", protect, updateUmlPreparation);
 router.get("/:id/presentation", protect, getPresentation);
 router.put("/:id/presentation", protect, updatePresentation);
+router.get("/:id/pitch", protect, getPitch);
+router.put("/:id/pitch", protect, updatePitch);
 
 module.exports = router;

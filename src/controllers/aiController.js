@@ -38,6 +38,12 @@ const {
   generatePresentation: generatePresentationService,
   refinePresentation: refinePresentationService,
 } = require("../services/presentationService");
+const {
+  generatePitch: generatePitchService,
+  refinePitch: refinePitchService,
+  generatePitchSlide: generatePitchSlideService,
+  refinePitchSlide: refinePitchSlideService,
+} = require("../services/pitchService");
 
 // @desc    Generate a first draft of the problem statement using AI
 // @route   POST /api/ai/problem-statement/generate
@@ -482,6 +488,93 @@ const refinePresentation = async (req, res) => {
   }
 };
 
+// @desc    Generate a complete PFE defense speech from the generated presentation
+// @route   POST /api/ai/pitch/generate
+// @access  Private
+const generatePitch = async (req, res) => {
+  try {
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const pitch = await generatePitchService(project);
+    res.status(200).json({ pitch });
+  } catch (error) {
+    console.error("[ai] generate pitch error:", error.message);
+    res.status(500).json({ message: error.message || "AI pitch generation failed." });
+  }
+};
+
+// @desc    Refine a complete PFE defense speech
+// @route   POST /api/ai/pitch/refine
+// @access  Private
+const refinePitch = async (req, res) => {
+  try {
+    const { pitch } = req.body;
+    if (!pitch || !Array.isArray(pitch.slides) || pitch.slides.length === 0) {
+      return res.status(400).json({ message: "Current pitch is required to refine." });
+    }
+
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const refinedPitch = await refinePitchService(project, pitch);
+    res.status(200).json({ pitch: refinedPitch });
+  } catch (error) {
+    console.error("[ai] refine pitch error:", error.message);
+    res.status(500).json({ message: error.message || "AI pitch refinement failed." });
+  }
+};
+
+// @desc    Generate speech for one presentation slide
+// @route   POST /api/ai/pitch/slide/generate
+// @access  Private
+const generatePitchSlide = async (req, res) => {
+  try {
+    const { pitch, slideId } = req.body;
+    if (!slideId) {
+      return res.status(400).json({ message: "Slide id is required." });
+    }
+
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const nextPitch = await generatePitchSlideService(project, pitch || {}, slideId);
+    res.status(200).json({ pitch: nextPitch });
+  } catch (error) {
+    console.error("[ai] generate pitch slide error:", error.message);
+    res.status(500).json({ message: error.message || "AI slide speech generation failed." });
+  }
+};
+
+// @desc    Refine speech for one presentation slide
+// @route   POST /api/ai/pitch/slide/refine
+// @access  Private
+const refinePitchSlide = async (req, res) => {
+  try {
+    const { pitch, slideId } = req.body;
+    if (!pitch || !Array.isArray(pitch.slides) || pitch.slides.length === 0 || !slideId) {
+      return res.status(400).json({ message: "Current pitch and slide id are required to refine." });
+    }
+
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const nextPitch = await refinePitchSlideService(project, pitch, slideId);
+    res.status(200).json({ pitch: nextPitch });
+  } catch (error) {
+    console.error("[ai] refine pitch slide error:", error.message);
+    res.status(500).json({ message: error.message || "AI slide speech refinement failed." });
+  }
+};
+
 module.exports = {
   generateProblemStatement,
   refineProblemStatement,
@@ -504,4 +597,8 @@ module.exports = {
   refineUmlPreparation,
   generatePresentation,
   refinePresentation,
+  generatePitch,
+  refinePitch,
+  generatePitchSlide,
+  refinePitchSlide,
 };

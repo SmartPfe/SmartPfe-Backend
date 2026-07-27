@@ -34,7 +34,7 @@ const formatRequirements = (requirements = []) =>
     .join("\n");
 
 const formatBacklog = (items = []) =>
-  items.map((item, index) => `${index + 1}. ${item.code} ${item.epic} - ${item.task} (${item.durationDays} days, ${item.priority})`).join("\n");
+  items.map((item, index) => `${index + 1}. ${item.code} [${item.priority}] ${item.task}: ${item.notes || ""}`).join("\n");
 
 const formatUserStories = (project) => {
   if (Array.isArray(project.userStories) && project.userStories.length) {
@@ -44,7 +44,7 @@ const formatUserStories = (project) => {
   }
 
   return (project.productBacklog || [])
-    .map((item, index) => `${index + 1}. As a user, I need ${item.task} (${item.epic}) so the project delivers this backlog value.`)
+    .map((item, index) => `${index + 1}. ${item.notes || item.task}`)
     .join("\n");
 };
 
@@ -190,4 +190,6 @@ ${buildContextBlock(project)}
 module.exports = {
   buildPresentationGenerationPrompt,
   buildPresentationRefinementPrompt,
+  buildContextBlock,
+  formatCurrentPresentation,
 };

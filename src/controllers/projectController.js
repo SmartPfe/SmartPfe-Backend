@@ -35,6 +35,10 @@ const {
   getPresentation: getPresentationService,
   savePresentation: savePresentationService,
 } = require("../services/presentationService");
+const {
+  getPitch: getPitchService,
+  savePitch: savePitchService,
+} = require("../services/pitchService");
 
 // @desc    Create a new project from onboarding
 // @route   POST /api/projects/onboarding
@@ -494,6 +498,39 @@ const updatePresentation = async (req, res) => {
   }
 };
 
+// @desc    Get pitch for a project owned by the current user
+// @route   GET /api/projects/:id/pitch
+// @access  Private
+const getPitch = async (req, res) => {
+  try {
+    const pitch = await getPitchService(req.user._id, req.params.id);
+    res.status(200).json({ pitch });
+  } catch (error) {
+    console.error("[project] getPitch error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
+// @desc    Replace pitch for a project owned by the current user
+// @route   PUT /api/projects/:id/pitch
+// @access  Private
+const updatePitch = async (req, res) => {
+  try {
+    const { pitch } = req.body;
+    if (!pitch || typeof pitch !== "object") {
+      return res.status(400).json({ message: "Pitch must be an object" });
+    }
+
+    const savedPitch = await savePitchService(req.user._id, req.params.id, pitch);
+    res.status(200).json({ pitch: savedPitch });
+  } catch (error) {
+    console.error("[project] updatePitch error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
 module.exports = {
   createProject,
   getMyProject,
@@ -518,4 +555,6 @@ module.exports = {
   updateUmlPreparation,
   getPresentation,
   updatePresentation,
+  getPitch,
+  updatePitch,
 };

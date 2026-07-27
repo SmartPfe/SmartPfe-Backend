@@ -37,7 +37,7 @@ const formatBacklog = (items = []) =>
   items
     .map(
       (item, index) =>
-        `${index + 1}. ${item.code} [${item.priority}] ${item.epic} - ${item.task} (${item.durationDays} day(s), ${item.sprint || "No sprint"})${item.notes ? ` Notes: ${item.notes}` : ""}`
+        `${index + 1}. ${item.code} [${item.priority}] ${item.task}: ${item.notes || "No user story description"}`
     )
     .join("\n");
 
@@ -54,12 +54,12 @@ Strict JSON format:
   "productBacklog": [
     {
       "code": "PB-01",
-      "epic": "Analysis",
-      "task": "As a project manager, I want to define the project scope so that the team has a clear roadmap.",
-      "priority": "High",
-      "durationDays": 5,
-      "sprint": "Sprint 1",
-      "notes": "Optional short academic planning note"
+      "epic": "Authentication",
+      "task": "Authentication",
+      "priority": "Must",
+      "durationDays": 1,
+      "sprint": "",
+      "notes": "En tant qu'utilisateur, je veux m'inscrire et me connecter via email/mot de passe."
     }
   ]
 }
@@ -69,9 +69,9 @@ const buildRules = (project) => {
   const targetDays = getTargetDurationDays(project);
   return `
 Rules:
-- Generate a professional Product Backlog for a final-year project report, not a todo app.
-- Each row must be a concrete project task, implementation task, analysis task, design task, testing task, documentation task, or deployment task.
-- IMPORTANT FORMAT REQUIREMENT: Each task MUST be written in User Story format.
+- Generate a professional Product Backlog for a final-year project report using exactly this table meaning: ID, Theme/User Story, Description, Priority.
+- Each row must be a concrete functional user story or report-ready project capability.
+- IMPORTANT FORMAT REQUIREMENT: task is the short Theme / User Story title only, while notes is the full Description in User Story format.
   - If output language is English: "As a <actor>, I want to <goal>, so that <benefit>." (the "so that" part is optional if it doesn't add value).
   - If output language is French: "En tant que <acteur>, je veux <objectif> afin de <bénéfice>."
 - Use enough tasks for a real PFE project. Small projects: 14-18 tasks. Medium projects: 18-26 tasks. Complex projects: 26-36 tasks.
@@ -79,8 +79,9 @@ Rules:
 - Distribute durations realistically: analysis/design/documentation tasks are usually 2-8 days; implementation tasks can be 4-15 days; testing/deployment tasks are usually 2-8 days.
 - Cover the full PFE lifecycle: analysis, requirements, design, implementation, testing, report writing, presentation preparation, and deployment when relevant.
 - Use previous context: project description, problem statement, actors, existing solutions, functional requirements, non-functional requirements, technologies, methodology, and target users.
-- Keep task names clear, formatted as user stories, and specific to the project.
-- priority must be exactly one of: "High", "Medium", "Low".
+- Keep task titles short and specific. Do not put the full "En tant que..." sentence in task.
+- Every notes value must start with "En tant" for French output, or "As a"/"As an" for English output.
+- priority must be exactly one of: "Must", "Should", "Could", "Won't".
 - durationDays must be a positive integer.
 - Codes must be sequential: PB-01, PB-02, PB-03, and so on.
 - Use concise epic names such as Analysis, Design, Backend, Frontend, AI, Testing, Documentation, Deployment, Defense Preparation, or project-specific equivalents.
@@ -96,7 +97,7 @@ You are an academic software project planning assistant helping a student prepar
 Your task: Generate a complete, realistic, project-specific Product Backlog table using all available project context.
 
 OUTPUT LANGUAGE: ${ctx.outputLanguage}
-Use ${ctx.outputLanguage} for epic names, tasks, sprint/phase names, and notes when appropriate.
+Use ${ctx.outputLanguage} for task titles and notes when appropriate.
 
 ${jsonContract}
 
@@ -127,7 +128,7 @@ You are an academic software project planning assistant helping a student refine
 Your task: Improve the current backlog. Preserve useful student edits, make durations realistic, add missing lifecycle tasks, remove duplicates, and ensure the total duration approximately matches the onboarding duration.
 
 OUTPUT LANGUAGE: ${ctx.outputLanguage}
-Use ${ctx.outputLanguage} for epic names, tasks, sprint/phase names, and notes when appropriate.
+Use ${ctx.outputLanguage} for task titles and notes when appropriate.
 
 ${jsonContract}
 

@@ -27,6 +27,35 @@ const normalizeDuration = (durationDays) => {
   return Math.round(value);
 };
 
+const normalizeMoSCoWPriority = (priority) => {
+  const cleaned = String(priority || "").trim().toLowerCase();
+  if (["must", "must have", "high", "haute", "elevee", "Ã©levÃ©e"].includes(cleaned)) return "Must";
+  if (["could", "could have", "low", "basse", "faible"].includes(cleaned)) return "Could";
+  if (["won't", "wont", "will not", "won't have", "wont have"].includes(cleaned)) return "Won't";
+  return "Should";
+};
+
+const looksLikeUserStory = (value = "") => {
+  const cleaned = String(value || "").trim().toLowerCase();
+  return cleaned.startsWith("en tant") || cleaned.startsWith("as a ") || cleaned.startsWith("as an ");
+};
+
+const normalizeStoryTitle = (item, index) => {
+  const task = String(item?.task || item?.title || "").trim();
+  if (task && !looksLikeUserStory(task)) return task;
+  const theme = String(item?.theme || item?.userStory || item?.epic || "").trim();
+  if (theme && theme !== "Project") return theme;
+  return `User Story ${index + 1}`;
+};
+
+const normalizeStoryDescription = (item) => {
+  const description = String(item?.notes || item?.description || "").trim();
+  if (description) return description;
+  const task = String(item?.task || item?.title || "").trim();
+  if (looksLikeUserStory(task)) return task;
+  return task ? `En tant qu'utilisateur, je veux ${task.toLowerCase()}.` : "En tant qu'utilisateur, je veux ...";
+};
+
 const normalizeProductBacklog = (items) => {
   if (!Array.isArray(items)) {
     return [];
@@ -36,11 +65,11 @@ const normalizeProductBacklog = (items) => {
     .map((item, index) => ({
       code: buildCode(index, item?.code || item?.id),
       epic: String(item?.epic || item?.phase || "Project").trim(),
-      task: String(item?.task || item?.title || item?.description || "").trim(),
-      priority: normalizePriority(item?.priority),
+      task: normalizeStoryTitle(item, index),
+      priority: normalizeMoSCoWPriority(item?.priority),
       durationDays: normalizeDuration(item?.durationDays || item?.duration || item?.days),
       sprint: String(item?.sprint || item?.phase || "").trim(),
-      notes: String(item?.notes || "").trim(),
+      notes: normalizeStoryDescription(item),
     }))
     .filter((item) => item.epic && item.task && item.durationDays > 0)
     .map((item, index) => ({

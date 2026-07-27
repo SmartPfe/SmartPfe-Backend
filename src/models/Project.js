@@ -75,10 +75,10 @@ const productBacklogItemSchema = new mongoose.Schema(
     task: { type: String, required: true, trim: true },
     priority: {
       type: String,
-      enum: ["High", "Medium", "Low"],
-      default: "Medium",
+      enum: ["Must", "Should", "Could", "Won't"],
+      default: "Should",
     },
-    durationDays: { type: Number, required: true, min: 1 },
+    durationDays: { type: Number, default: 1, min: 1 },
     sprint: { type: String, default: "", trim: true },
     notes: { type: String, default: "", trim: true },
   },
@@ -216,6 +216,17 @@ const presentationSlideSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const pitchSlideSchema = new mongoose.Schema(
+  {
+    slideId: { type: String, required: true, trim: true },
+    title: { type: String, required: true, trim: true },
+    estimatedSeconds: { type: Number, default: 60, min: 0 },
+    speech: { type: String, default: "" },
+    tips: { type: [String], default: [] },
+  },
+  { _id: false }
+);
+
 const projectSchema = new mongoose.Schema(
   {
     user: {
@@ -293,6 +304,12 @@ const projectSchema = new mongoose.Schema(
     presentation: {
       durationMinutes: { type: Number, enum: [5, 10, 15, 20], default: 10 },
       slides: { type: [presentationSlideSchema], default: [] },
+      sourceFingerprint: { type: String, default: "" },
+      updatedAt: { type: Date },
+    },
+    pitch: {
+      durationMinutes: { type: Number, enum: [5, 10, 15, 20], default: 10 },
+      slides: { type: [pitchSlideSchema], default: [] },
       sourceFingerprint: { type: String, default: "" },
       updatedAt: { type: Date },
     },

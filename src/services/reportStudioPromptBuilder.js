@@ -23,7 +23,7 @@ const formatRequirements = (requirements = []) =>
     .join("\n");
 
 const formatBacklog = (items = []) =>
-  items.map((item, index) => `${index + 1}. ${item.code} ${item.epic} - ${item.task} (${item.durationDays} days, ${item.priority})`).join("\n");
+  items.map((item, index) => `${index + 1}. ${item.code} [${item.priority}] ${item.task}: ${item.notes || ""}`).join("\n");
 
 const formatUml = (umlPreparation = {}) => {
   const classes = (umlPreparation.classes || []).map((item) => `${item.name}: ${item.description}`).join("\n");

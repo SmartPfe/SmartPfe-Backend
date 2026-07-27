@@ -15,7 +15,7 @@ const formatRequirements = (requirements = [], label = "REQ") =>
 
 const formatBacklog = (items = []) =>
   items
-    .map((item, index) => `${index + 1}. ${item.code} [${item.priority}] ${item.epic} - ${item.task} (${item.durationDays} days)`)
+    .map((item, index) => `${index + 1}. ${item.code} [${item.priority}] ${item.task}: ${item.notes || ""}`)
     .join("\n");
 
 const formatUml = (umlPreparation = {}) => {

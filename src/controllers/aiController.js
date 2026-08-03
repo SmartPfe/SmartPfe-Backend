@@ -44,12 +44,14 @@ const {
 const {
   generatePresentation: generatePresentationService,
   refinePresentation: refinePresentationService,
+  translatePresentationSlide: translatePresentationSlideService,
 } = require("../services/presentationService");
 const {
   generatePitch: generatePitchService,
   refinePitch: refinePitchService,
   generatePitchSlide: generatePitchSlideService,
   refinePitchSlide: refinePitchSlideService,
+  translatePitchSlide: translatePitchSlideService,
 } = require("../services/pitchService");
 
 // @desc    Generate a first draft of the problem statement using AI
@@ -662,7 +664,7 @@ const generatePresentation = async (req, res) => {
 // @access  Private
 const refinePresentation = async (req, res) => {
   try {
-    const { presentation } = req.body;
+    const { presentation, instructions = "", slideId = "" } = req.body;
     if (!presentation || !Array.isArray(presentation.slides) || presentation.slides.length === 0) {
       return res.status(400).json({ message: "Current presentation is required to refine." });
     }
@@ -672,11 +674,34 @@ const refinePresentation = async (req, res) => {
       return res.status(404).json({ message: "Project not found for this user." });
     }
 
-    const refinedPresentation = await refinePresentationService(project, presentation);
+    const refinedPresentation = await refinePresentationService(project, presentation, instructions, slideId);
     res.status(200).json({ presentation: refinedPresentation });
   } catch (error) {
     console.error("[ai] refine presentation error:", error.message);
     res.status(500).json({ message: error.message || "AI presentation refinement failed." });
+  }
+};
+
+// @desc    Translate one PFE defense presentation slide using AI
+// @route   POST /api/ai/presentation/translate
+// @access  Private
+const translatePresentation = async (req, res) => {
+  try {
+    const { presentation, slideId } = req.body;
+    if (!presentation || !Array.isArray(presentation.slides) || presentation.slides.length === 0 || !slideId) {
+      return res.status(400).json({ message: "Current presentation and slide id are required to translate." });
+    }
+
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const translatedPresentation = await translatePresentationSlideService(project, presentation, slideId);
+    res.status(200).json({ presentation: translatedPresentation });
+  } catch (error) {
+    console.error("[ai] translate presentation error:", error.message);
+    res.status(500).json({ message: error.message || "AI presentation translation failed." });
   }
 };
 
@@ -703,7 +728,7 @@ const generatePitch = async (req, res) => {
 // @access  Private
 const refinePitch = async (req, res) => {
   try {
-    const { pitch } = req.body;
+    const { pitch, instructions = "" } = req.body;
     if (!pitch || !Array.isArray(pitch.slides) || pitch.slides.length === 0) {
       return res.status(400).json({ message: "Current pitch is required to refine." });
     }
@@ -713,7 +738,7 @@ const refinePitch = async (req, res) => {
       return res.status(404).json({ message: "Project not found for this user." });
     }
 
-    const refinedPitch = await refinePitchService(project, pitch);
+    const refinedPitch = await refinePitchService(project, pitch, instructions);
     res.status(200).json({ pitch: refinedPitch });
   } catch (error) {
     console.error("[ai] refine pitch error:", error.message);
@@ -749,7 +774,7 @@ const generatePitchSlide = async (req, res) => {
 // @access  Private
 const refinePitchSlide = async (req, res) => {
   try {
-    const { pitch, slideId } = req.body;
+    const { pitch, slideId, instructions = "" } = req.body;
     if (!pitch || !Array.isArray(pitch.slides) || pitch.slides.length === 0 || !slideId) {
       return res.status(400).json({ message: "Current pitch and slide id are required to refine." });
     }
@@ -759,11 +784,34 @@ const refinePitchSlide = async (req, res) => {
       return res.status(404).json({ message: "Project not found for this user." });
     }
 
-    const nextPitch = await refinePitchSlideService(project, pitch, slideId);
+    const nextPitch = await refinePitchSlideService(project, pitch, slideId, instructions);
     res.status(200).json({ pitch: nextPitch });
   } catch (error) {
     console.error("[ai] refine pitch slide error:", error.message);
     res.status(500).json({ message: error.message || "AI slide speech refinement failed." });
+  }
+};
+
+// @desc    Translate speech for one presentation slide
+// @route   POST /api/ai/pitch/slide/translate
+// @access  Private
+const translatePitchSlide = async (req, res) => {
+  try {
+    const { pitch, slideId } = req.body;
+    if (!pitch || !Array.isArray(pitch.slides) || pitch.slides.length === 0 || !slideId) {
+      return res.status(400).json({ message: "Current pitch and slide id are required to translate." });
+    }
+
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    const nextPitch = await translatePitchSlideService(project, pitch, slideId);
+    res.status(200).json({ pitch: nextPitch });
+  } catch (error) {
+    console.error("[ai] translate pitch slide error:", error.message);
+    res.status(500).json({ message: error.message || "AI slide speech translation failed." });
   }
 };
 
@@ -797,8 +845,10 @@ module.exports = {
   translateUmlPreparation,
   generatePresentation,
   refinePresentation,
+  translatePresentation,
   generatePitch,
   refinePitch,
   generatePitchSlide,
   refinePitchSlide,
+  translatePitchSlide,
 };

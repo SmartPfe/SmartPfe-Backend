@@ -36,7 +36,8 @@ Strict JSON format:
         "title": "Slide title",
         "estimatedSeconds": 75,
         "speech": "Complete natural speech for this slide.",
-        "tips": ["Simple delivery advice", "Useful transition or pause"]
+        "tips": ["Simple delivery advice", "Useful transition or pause"],
+        "language": "target-language-code"
       }
     ]
   }
@@ -51,7 +52,8 @@ Strict JSON format:
     "title": "Slide title",
     "estimatedSeconds": 75,
     "speech": "Complete natural speech for this slide.",
-    "tips": ["Simple delivery advice", "Useful transition or pause"]
+    "tips": ["Simple delivery advice", "Useful transition or pause"],
+    "language": "target-language-code"
   }
 }`.trim();
 
@@ -88,8 +90,9 @@ ${buildContextBlock(project)}
 `.trim();
 };
 
-const buildPitchRefinementPrompt = (project, presentation, pitch) => {
+const buildPitchRefinementPrompt = (project, presentation, pitch, instructions = "") => {
   const ctx = getProjectContext(project);
+  const studentInstructions = String(instructions || "").trim();
   return `
 You are Smart PFE's AI Pitch Studio.
 
@@ -101,6 +104,8 @@ Refine the complete speech for a ${presentation.durationMinutes}-minute PFE defe
 ${pitchJsonContract}
 
 ${rules}
+- Preserve every slideId and the slide order.
+${studentInstructions ? `\nSTUDENT INSTRUCTIONS (highest priority, while still respecting the rules above):\n${studentInstructions}\n` : ""}
 
 GENERATED PRESENTATION:
 ${formatCurrentPresentation(presentation)}
@@ -139,8 +144,9 @@ ${buildContextBlock(project)}
 `.trim();
 };
 
-const buildPitchSlideRefinementPrompt = (project, presentation, pitch, slideId, currentSlide) => {
+const buildPitchSlideRefinementPrompt = (project, presentation, pitch, slideId, currentSlide, instructions = "") => {
   const ctx = getProjectContext(project);
+  const studentInstructions = String(instructions || "").trim();
   return `
 You are Smart PFE's AI Pitch Studio.
 
@@ -152,6 +158,8 @@ Refine only the selected slide speech. Preserve useful student edits and keep th
 ${singleSlideJsonContract}
 
 ${rules}
+- Preserve the selected slideId exactly: ${slideId}.
+${studentInstructions ? `\nSTUDENT INSTRUCTIONS (highest priority, while still respecting the rules above):\n${studentInstructions}\n` : ""}
 
 TARGET SLIDE:
 ${formatTargetSlide(presentation, slideId)}
@@ -173,9 +181,45 @@ ${buildContextBlock(project)}
 `.trim();
 };
 
+const buildPitchSlideTranslationPrompt = (project, presentation, pitch, slideId, currentSlide) => {
+  const ctx = getProjectContext(project);
+  return `
+You are an academic translation assistant.
+
+Your task: Translate only the selected slide speech to ${ctx.outputLanguage}.
+
+OUTPUT LANGUAGE: ${ctx.outputLanguage}
+Write entirely in ${ctx.outputLanguage} unless technical terms must remain in English.
+
+${singleSlideJsonContract}
+
+Rules:
+- Translate only the current selected slide speech and speaker tips.
+- Do NOT regenerate the speech from project context.
+- Do NOT add, remove, reorder, or merge slides.
+- Preserve the selected slideId exactly: ${slideId}.
+- Preserve title, estimatedSeconds, meaning, pacing, transitions, and the student's manual edits as much as possible.
+- Return ONLY valid JSON. No markdown. No explanation. No surrounding text.
+
+TARGET SLIDE:
+${formatTargetSlide(presentation, slideId)}
+
+CURRENT SELECTED SPEECH:
+Speech:
+${currentSlide?.speech || ""}
+
+Speaker tips:
+${(currentSlide?.tips || []).map((tip) => `- ${tip}`).join("\n")}
+
+CURRENT COMPLETE SPEECH:
+${formatCurrentPitch(pitch)}
+`.trim();
+};
+
 module.exports = {
   buildPitchGenerationPrompt,
   buildPitchRefinementPrompt,
   buildPitchSlideGenerationPrompt,
   buildPitchSlideRefinementPrompt,
+  buildPitchSlideTranslationPrompt,
 };

@@ -1,7 +1,8 @@
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const OPENROUTER_MODELS = [
-  "nvidia/nemotron-3-super-120b-a12b:free",
   "nvidia/nemotron-3-ultra-550b-a55b:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
+  "gemma-4-31b-it:free",
   "openai/gpt-oss-120b:free",
   "openrouter/owl-alpha",
 ];

@@ -214,6 +214,7 @@ const presentationSlideSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     bullets: { type: [String], default: [] },
     notes: { type: String, default: "" },
+    language: { type: String },
   },
   { _id: false }
 );
@@ -225,6 +226,7 @@ const pitchSlideSchema = new mongoose.Schema(
     estimatedSeconds: { type: Number, default: 60, min: 0 },
     speech: { type: String, default: "" },
     tips: { type: [String], default: [] },
+    language: { type: String },
   },
   { _id: false }
 );

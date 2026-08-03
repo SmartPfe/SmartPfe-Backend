@@ -68,11 +68,26 @@ const formatReportChapters = (chapters = []) =>
 const formatCurrentPresentation = (presentation = {}) =>
   (presentation.slides || [])
     .map((slide, index) => [
-      `Slide ${index + 1}: ${slide.title}`,
+      `Slide ${index + 1} (${slide.id || "no-id"}): ${slide.title}`,
       `Bullets:\n${(slide.bullets || []).map((bullet) => `- ${bullet}`).join("\n")}`,
       `Speaker notes:\n${slide.notes || ""}`,
     ].join("\n"))
     .join("\n\n");
+
+const formatTargetSlide = (presentation = {}, slideId) => {
+  const slides = presentation.slides || [];
+  const index = slides.findIndex((slide) => slide.id === slideId);
+  const slide = slides[index];
+  if (!slide) return "";
+
+  return [
+    `Slide ${index + 1} of ${slides.length}`,
+    `id: ${slide.id}`,
+    `Title: ${slide.title}`,
+    `Bullets:\n${(slide.bullets || []).map((bullet) => `- ${bullet}`).join("\n")}`,
+    `Speaker notes:\n${slide.notes || ""}`,
+  ].join("\n");
+};
 
 const jsonContract = `
 Return ONLY valid JSON. No markdown fences. No explanation.
@@ -83,11 +98,26 @@ Strict JSON format:
     "durationMinutes": 10,
     "slides": [
       {
+        "id": "same-slide-id-when-refining-or-translating",
         "title": "Slide title",
         "bullets": ["Short academic bullet", "Another bullet"],
         "notes": "Speaker notes that guide what the student should say without reading the slide."
       }
     ]
+  }
+}
+`.trim();
+
+const singleSlideJsonContract = `
+Return ONLY valid JSON. No markdown fences. No explanation.
+
+Strict JSON format:
+{
+  "slide": {
+    "id": "same-slide-id-from-current-slide",
+    "title": "Slide title",
+    "bullets": ["Short academic bullet", "Another bullet"],
+    "notes": "Speaker notes that guide what the student should say without reading the slide."
   }
 }
 `.trim();
@@ -166,8 +196,9 @@ ${buildContextBlock(project)}
 `.trim();
 };
 
-const buildPresentationRefinementPrompt = (project, presentation) => {
+const buildPresentationRefinementPrompt = (project, presentation, instructions = "") => {
   const ctx = getProjectContext(project);
+  const studentInstructions = String(instructions || "").trim();
   return `
 You are Smart PFE's AI Presentation Studio.
 
@@ -179,6 +210,8 @@ Refine the current editable defense presentation for a ${presentation.durationMi
 ${jsonContract}
 
 ${rules}
+- Preserve every existing slide id and slide order.
+${studentInstructions ? `\nSTUDENT INSTRUCTIONS (highest priority, while still respecting the rules above):\n${studentInstructions}\n` : ""}
 
 CURRENT PRESENTATION:
 ${formatCurrentPresentation(presentation)}
@@ -187,9 +220,64 @@ ${buildContextBlock(project)}
 `.trim();
 };
 
+const buildPresentationSlideRefinementPrompt = (project, presentation, slideId, currentSlide, instructions = "") => {
+  const ctx = getProjectContext(project);
+  const studentInstructions = String(instructions || "").trim();
+  return `
+You are Smart PFE's AI Presentation Studio.
+
+OUTPUT LANGUAGE: ${ctx.outputLanguage}
+Write entirely in ${ctx.outputLanguage} unless technical terms must remain in English.
+
+Refine only the selected slide for a ${presentation.durationMinutes}-minute PFE defense. Do not modify, regenerate, add, remove, or reorder any other slide.
+
+${singleSlideJsonContract}
+
+${rules}
+- Preserve the selected slide id exactly: ${currentSlide?.id || slideId}.
+- Preserve useful student edits while improving the selected slide's title, bullets, and speaker notes.
+${studentInstructions ? `\nSTUDENT INSTRUCTIONS (highest priority, while still respecting the rules above):\n${studentInstructions}\n` : ""}
+
+SELECTED SLIDE:
+${formatTargetSlide(presentation, slideId)}
+
+FULL PRESENTATION CONTEXT:
+${formatCurrentPresentation(presentation)}
+
+${buildContextBlock(project)}
+`.trim();
+};
+
+const buildPresentationSlideTranslationPrompt = (project, presentation, slideId, currentSlide) => {
+  const ctx = getProjectContext(project);
+  return `
+You are an academic translation assistant.
+
+Your task: Translate only the selected presentation slide to ${ctx.outputLanguage}.
+
+OUTPUT LANGUAGE: ${ctx.outputLanguage}
+Write entirely in ${ctx.outputLanguage} unless technical terms must remain in English.
+
+${singleSlideJsonContract}
+
+Rules:
+- Translate only the selected slide title, bullets, and speaker notes.
+- Do NOT regenerate the slide from project context.
+- Do NOT add, remove, reorder, or merge bullets.
+- Preserve the selected slide id exactly: ${currentSlide?.id || slideId}.
+- Preserve the student's manual edits, meaning, pacing, and academic tone as much as possible.
+- Return ONLY valid JSON. No markdown. No explanation. No surrounding text.
+
+SELECTED SLIDE:
+${formatTargetSlide(presentation, slideId)}
+`.trim();
+};
+
 module.exports = {
   buildPresentationGenerationPrompt,
   buildPresentationRefinementPrompt,
+  buildPresentationSlideRefinementPrompt,
+  buildPresentationSlideTranslationPrompt,
   buildContextBlock,
   formatCurrentPresentation,
 };

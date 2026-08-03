@@ -30,10 +30,12 @@ const {
   translateUmlPreparation,
   generatePresentation,
   refinePresentation,
+  translatePresentation,
   generatePitch,
   refinePitch,
   generatePitchSlide,
   refinePitchSlide,
+  translatePitchSlide,
 } = require("../controllers/aiController");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -66,9 +68,11 @@ router.post("/uml-preparation/refine", protect, refineUmlPreparation);
 router.post("/uml-preparation/translate", protect, translateUmlPreparation);
 router.post("/presentation/generate", protect, generatePresentation);
 router.post("/presentation/refine", protect, refinePresentation);
+router.post("/presentation/translate", protect, translatePresentation);
 router.post("/pitch/generate", protect, generatePitch);
 router.post("/pitch/refine", protect, refinePitch);
 router.post("/pitch/slide/generate", protect, generatePitchSlide);
 router.post("/pitch/slide/refine", protect, refinePitchSlide);
+router.post("/pitch/slide/translate", protect, translatePitchSlide);
 
 module.exports = router;

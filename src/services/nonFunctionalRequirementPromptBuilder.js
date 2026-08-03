@@ -91,8 +91,9 @@ ${formatFunctionalRequirements(project.functionalRequirements || []) || "No func
 `.trim();
 };
 
-const buildNonFunctionalRequirementRefinementPrompt = (project, requirements) => {
+const buildNonFunctionalRequirementRefinementPrompt = (project, requirements, instructions = "") => {
   const ctx = getProjectContext(project);
+  const studentInstructions = String(instructions || "").trim();
   return `
 You are an academic software analysis assistant helping a student refine non-functional requirements for a PFE project.
 
@@ -106,6 +107,7 @@ ${jsonContract}
 ${rules}
 - Preserve useful user-provided requirements and priorities.
 - Keep manually approved requirements unless they are clearly duplicate or irrelevant.
+${studentInstructions ? `\nSTUDENT INSTRUCTIONS (highest priority, while still respecting the rules above):\n${studentInstructions}\n` : ""}
 
 PROJECT CONTEXT:
 ${formatContextString(ctx)}
@@ -124,7 +126,33 @@ ${formatNonFunctionalRequirements(requirements)}
 `.trim();
 };
 
+const buildNonFunctionalRequirementTranslationPrompt = (project, requirements) => {
+  const ctx = getProjectContext(project);
+  return `
+You are an academic translation assistant.
+
+Your task: Translate the current non-functional requirements to ${ctx.outputLanguage}.
+
+OUTPUT LANGUAGE: ${ctx.outputLanguage}
+Use ${ctx.outputLanguage} for categories, titles, and descriptions.
+
+${jsonContract}
+
+Rules:
+- Translate only the current non-functional requirements content.
+- Do NOT regenerate, add, remove, merge, or reorder requirements.
+- Preserve each code, priority, and status exactly.
+- Preserve the student's manual edits and meaning as much as possible.
+- Translate category, title, and description.
+- Return ONLY valid JSON. No markdown. No explanation. No surrounding text.
+
+CURRENT NON-FUNCTIONAL REQUIREMENTS:
+${JSON.stringify({ nonFunctionalRequirements: requirements }, null, 2)}
+`.trim();
+};
+
 module.exports = {
   buildNonFunctionalRequirementGenerationPrompt,
   buildNonFunctionalRequirementRefinementPrompt,
+  buildNonFunctionalRequirementTranslationPrompt,
 };

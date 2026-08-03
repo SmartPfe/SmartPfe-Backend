@@ -50,8 +50,9 @@ ${formatContextString(ctx)}
 `.trim();
 };
 
-const buildActorRefinementPrompt = (project, actors) => {
+const buildActorRefinementPrompt = (project, actors, instructions = "") => {
   const ctx = getProjectContext(project);
+  const studentInstructions = String(instructions || "").trim();
   return `
 You are an academic software analysis assistant helping a student improve actors and stakeholders for a PFE project.
 
@@ -87,6 +88,7 @@ Rules:
 - icon must be a short Material Symbols icon name such as "person", "admin_panel_settings", "school", "api", "devices", "database", "business_center", or "sensors".
 - Do not include duplicate or overlapping actors.
 - Descriptions must be specific to this project.
+${studentInstructions ? `\nSTUDENT INSTRUCTIONS (highest priority, while still respecting the rules above):\n${studentInstructions}\n` : ""}
 
 PROJECT CONTEXT:
 ${formatContextString(ctx)}
@@ -96,7 +98,44 @@ ${formatActors(actors)}
 `.trim();
 };
 
+const buildActorTranslationPrompt = (project, actors) => {
+  const ctx = getProjectContext(project);
+  return `
+You are an academic translation assistant.
+
+Your task: Translate the current actor and stakeholder list to ${ctx.outputLanguage}.
+
+OUTPUT LANGUAGE: ${ctx.outputLanguage}
+Use ${ctx.outputLanguage} for actor names and descriptions.
+
+Return ONLY valid JSON. No markdown. No explanation. No surrounding text.
+
+Strict JSON format:
+{
+  "actors": [
+    {
+      "name": "Actor name",
+      "description": "One clear sentence describing how this actor interacts with or is affected by the system.",
+      "type": "primary",
+      "icon": "person"
+    }
+  ]
+}
+
+Rules:
+- Translate only actor names and descriptions.
+- Do NOT regenerate, add, remove, merge, or reorder actors.
+- Preserve each actor's type and icon exactly.
+- Preserve the student's manual edits and meaning as much as possible.
+- type must remain exactly one of: "primary", "external".
+
+CURRENT ACTORS:
+${JSON.stringify({ actors }, null, 2)}
+`.trim();
+};
+
 module.exports = {
   buildActorGenerationPrompt,
   buildActorRefinementPrompt,
+  buildActorTranslationPrompt,
 };

@@ -3,6 +3,7 @@ const { callOpenRouter } = require("./openRouterService");
 const {
   buildUmlPreparationGenerationPrompt,
   buildUmlPreparationRefinementPrompt,
+  buildUmlPreparationTranslationPrompt,
 } = require("./umlPreparationPromptBuilder");
 
 const RELATIONSHIP_TYPES = new Set(["association", "inheritance", "composition", "aggregation", "dependency"]);
@@ -139,13 +140,24 @@ const generateUmlPreparation = async (project) => {
   return parseUmlPreparationResponse(response);
 };
 
-const refineUmlPreparation = async (project, currentUmlPreparation) => {
+const refineUmlPreparation = async (project, currentUmlPreparation, instructions = "") => {
   const umlPreparation = normalizeUmlPreparation(currentUmlPreparation);
   if (umlPreparation.classes.length === 0) {
     throw new Error("Current UML preparation is required to refine.");
   }
 
-  const prompt = buildUmlPreparationRefinementPrompt(project, umlPreparation);
+  const prompt = buildUmlPreparationRefinementPrompt(project, umlPreparation, instructions);
+  const response = await callOpenRouter(prompt);
+  return parseUmlPreparationResponse(response);
+};
+
+const translateUmlPreparation = async (project, currentUmlPreparation) => {
+  const umlPreparation = normalizeUmlPreparation(currentUmlPreparation);
+  if (umlPreparation.classes.length === 0) {
+    throw new Error("Current UML preparation is required to translate.");
+  }
+
+  const prompt = buildUmlPreparationTranslationPrompt(project, umlPreparation);
   const response = await callOpenRouter(prompt);
   return parseUmlPreparationResponse(response);
 };
@@ -155,21 +167,30 @@ const getUmlPreparation = async (userId, projectId) => {
   return normalizeUmlPreparation(project.umlPreparation || {});
 };
 
-const saveUmlPreparation = async (userId, projectId, umlPreparation) => {
+const saveUmlPreparation = async (userId, projectId, umlPreparation, language) => {
   const normalized = normalizeUmlPreparation(umlPreparation);
+  const updates = { umlPreparation: normalized };
+  if (language !== undefined) {
+    updates.umlPreparationLanguage = language;
+  }
+
   const project = await Project.findOneAndUpdate(
     { _id: projectId, user: userId },
-    { $set: { umlPreparation: normalized } },
+    { $set: updates },
     { new: true, runValidators: true }
   );
 
   if (!project) throw new Error("Project not found for this user.");
-  return normalizeUmlPreparation(project.umlPreparation || {});
+  return {
+    umlPreparation: normalizeUmlPreparation(project.umlPreparation || {}),
+    language: project.umlPreparationLanguage,
+  };
 };
 
 module.exports = {
   generateUmlPreparation,
   refineUmlPreparation,
+  translateUmlPreparation,
   getUmlPreparation,
   saveUmlPreparation,
   normalizeUmlPreparation,

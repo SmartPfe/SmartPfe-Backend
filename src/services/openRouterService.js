@@ -102,6 +102,25 @@ Rules:
 PROJECT CONTEXT:
 ${formatContextString(ctx)}
 `.trim(),
+
+  translate: (ctx) => `
+You are an academic translation assistant.
+Translate the following Problem Statement to ${ctx.outputLanguage}.
+
+OUTPUT LANGUAGE: ${ctx.outputLanguage}
+You MUST write entirely in ${ctx.outputLanguage}.
+
+Rules:
+- Translate only the provided Problem Statement content
+- Do NOT regenerate, rewrite from project context, or add new ideas
+- Preserve the student's manual edits, meaning, paragraph structure, and academic tone as much as possible
+- If the input contains lightweight HTML tags, keep the same HTML structure and translate text nodes only
+- Do NOT use bullet points or headings unless they already exist in the input
+- Return ONLY the translated text — no commentary, no explanation
+
+PROJECT CONTEXT:
+${formatContextString(ctx)}
+`.trim(),
 };
 
 // --- OpenRouter HTTP call with model fallback ---
@@ -167,17 +186,25 @@ const callOpenRouter = async (systemPrompt, userPrompt = null) => {
 // --- Public API ---
 
 /**
- * @param {"generate"|"refine"} type
+ * @param {"generate"|"refine"|"translate"} type
  * @param {object} project - Mongoose Project document
- * @param {string|null} currentText - Plain text of current editor content (for refine)
+ * @param {string|null} currentText - Current editor content (for refine or translate)
  */
-const callAI = async (type, project, currentText = null) => {
+const callAI = async (type, project, currentText = null, options = {}) => {
   if (!PROMPTS[type]) {
     throw new Error(`Unknown AI action type: "${type}"`);
   }
   const ctx = buildProjectContext(project);
   const systemPrompt = PROMPTS[type](ctx);
-  const userPrompt = currentText ? `CURRENT TEXT:\n${currentText}` : null;
+  const instructions = typeof options.instructions === "string" ? options.instructions.trim() : "";
+  const userPrompt = currentText
+    ? [
+        instructions
+          ? `STUDENT INSTRUCTIONS (highest priority, while still respecting the rules above):\n${instructions}`
+          : null,
+        `CURRENT TEXT:\n${currentText}`,
+      ].filter(Boolean).join("\n\n")
+    : null;
   return callOpenRouter(systemPrompt, userPrompt);
 };
 

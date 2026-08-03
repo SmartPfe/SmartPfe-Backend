@@ -124,8 +124,9 @@ ${formatNonFunctionalRequirements(project.nonFunctionalRequirements || []) || "N
 `.trim();
 };
 
-const buildUmlPreparationRefinementPrompt = (project, umlPreparation) => {
+const buildUmlPreparationRefinementPrompt = (project, umlPreparation, instructions = "") => {
   const ctx = getProjectContext(project);
+  const studentInstructions = String(instructions || "").trim();
   return `
 You are an academic software analysis assistant helping a student refine UML preparation data for a PFE project.
 
@@ -140,6 +141,7 @@ ${rules}
 - Preserve useful user-provided classes and relationships.
 - Remove duplicate or incoherent classes.
 - Ensure relationships reference existing classes.
+${studentInstructions ? `\nSTUDENT INSTRUCTIONS (highest priority, while still respecting the rules above):\n${studentInstructions}\n` : ""}
 
 PROJECT CONTEXT:
 ${formatContextString(ctx)}
@@ -161,7 +163,37 @@ ${formatRelationships(umlPreparation.relationships || [])}
 `.trim();
 };
 
+const buildUmlPreparationTranslationPrompt = (project, umlPreparation) => {
+  const ctx = getProjectContext(project);
+  return `
+You are an academic translation assistant.
+
+Your task: Translate the current UML preparation model to ${ctx.outputLanguage}.
+
+OUTPUT LANGUAGE: ${ctx.outputLanguage}
+Use ${ctx.outputLanguage} for human-readable descriptions and diagram labels.
+
+${jsonContract}
+
+Rules:
+- Translate only the current UML preparation content.
+- Do NOT regenerate, add, remove, merge, or reorder classes, relationships, use cases, sequence messages, or activity transitions.
+- Preserve the student's manual edits and meaning as much as possible.
+- Preserve class names exactly because relationships and PlantUML markup depend on them.
+- Preserve class type, attributes, methods, relationship source, relationship target, relationship type, and multiplicities exactly.
+- Translate class descriptions and relationship labels.
+- Translate use case actors, use case names, and links consistently so every link still references the translated actor and use case.
+- Translate sequence participants, source, target, and messages consistently so messages still reference the translated participants.
+- Preserve activity transition from/to values exactly because Mermaid markup depends on them. Translate only activity labels.
+- Return ONLY valid JSON. No markdown. No explanation. No surrounding text.
+
+CURRENT UML PREPARATION:
+${JSON.stringify({ umlPreparation }, null, 2)}
+`.trim();
+};
+
 module.exports = {
   buildUmlPreparationGenerationPrompt,
   buildUmlPreparationRefinementPrompt,
+  buildUmlPreparationTranslationPrompt,
 };

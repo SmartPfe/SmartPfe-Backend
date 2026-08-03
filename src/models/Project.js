@@ -202,6 +202,7 @@ const reportChapterSchema = new mongoose.Schema(
     },
     generatedFrom: { type: [String], default: [] },
     sourceFingerprint: { type: String, default: "" },
+    language: { type: String },
     lastModified: { type: Date, default: Date.now },
   },
   { _id: true }
@@ -245,6 +246,7 @@ const projectSchema = new mongoose.Schema(
     },
     description: {
       problemStatement: { type: String, required: true },
+      problemStatementLanguage: { type: String },
       objective: { type: String, required: true },
       detailedDescription: { type: String },
       deliverables: { type: [String] },
@@ -267,30 +269,37 @@ const projectSchema = new mongoose.Schema(
       type: [actorSchema],
       default: [],
     },
+    actorsLanguage: { type: String },
     existingSolutions: {
       type: [existingSolutionSchema],
       default: [],
     },
+    existingSolutionsLanguage: { type: String },
     functionalRequirements: {
       type: [functionalRequirementSchema],
       default: [],
     },
+    functionalRequirementsLanguage: { type: String },
     nonFunctionalRequirements: {
       type: [nonFunctionalRequirementSchema],
       default: [],
     },
+    nonFunctionalRequirementsLanguage: { type: String },
     productBacklog: {
       type: [productBacklogItemSchema],
       default: [],
     },
+    productBacklogLanguage: { type: String },
     umlPreparation: {
       type: umlPreparationSchema,
       default: () => ({}),
     },
+    umlPreparationLanguage: { type: String },
     reportStructure: {
       type: [reportSectionSchema],
       default: [],
     },
+    reportStructureLanguage: { type: String },
     reportChapters: {
       type: [reportChapterSchema],
       default: [],

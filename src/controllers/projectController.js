@@ -107,15 +107,38 @@ const updateMyProject = async (req, res) => {
   try {
     const { basics, description, technicalContext } = req.body;
 
-    const project = await Project.findOneAndUpdate(
-      { user: req.user._id },
-      { basics, description, technicalContext },
-      { new: true, runValidators: true }
-    );
+    const currentProject = await Project.findOne({ user: req.user._id });
 
-    if (!project) {
+    if (!currentProject) {
       return res.status(404).json({ message: "Project not found for this user" });
     }
+
+    const incomingProblemStatement = description?.problemStatement;
+    const existingProblemStatement = currentProject.description?.problemStatement;
+    const shouldPreserveProblemStatement =
+      incomingProblemStatement === undefined ||
+      (typeof incomingProblemStatement === "string" &&
+        incomingProblemStatement.trim() === "" &&
+        typeof existingProblemStatement === "string" &&
+        existingProblemStatement.trim() !== "");
+
+    const nextDescription = {
+      ...description,
+      problemStatement:
+        shouldPreserveProblemStatement
+          ? existingProblemStatement
+          : incomingProblemStatement,
+      problemStatementLanguage:
+        description?.problemStatementLanguage
+          ? description.problemStatementLanguage
+          : currentProject.description?.problemStatementLanguage,
+    };
+
+    const project = await Project.findOneAndUpdate(
+      { user: req.user._id },
+      { basics, description: nextDescription, technicalContext },
+      { new: true, runValidators: true }
+    );
 
     await createNotification({
       user: req.user._id,
@@ -136,15 +159,20 @@ const updateMyProject = async (req, res) => {
 // @access  Private
 const updateProblemStatement = async (req, res) => {
   try {
-    const { problemStatement } = req.body;
+    const { problemStatement, language } = req.body;
 
     if (problemStatement === undefined) {
       return res.status(400).json({ message: "Problem statement content is required" });
     }
 
+    const updates = { "description.problemStatement": problemStatement };
+    if (language !== undefined) {
+      updates["description.problemStatementLanguage"] = language;
+    }
+
     const project = await Project.findOneAndUpdate(
       { user: req.user._id },
-      { $set: { "description.problemStatement": problemStatement } },
+      { $set: updates },
       { new: true, runValidators: true }
     );
 
@@ -154,6 +182,7 @@ const updateProblemStatement = async (req, res) => {
 
     res.status(200).json({ 
       problemStatement: project.description.problemStatement,
+      language: project.description.problemStatementLanguage,
       updatedAt: project.updatedAt 
     });
   } catch (error) {
@@ -181,13 +210,13 @@ const getActors = async (req, res) => {
 // @access  Private
 const updateActors = async (req, res) => {
   try {
-    const { actors } = req.body;
+    const { actors, language } = req.body;
     if (!Array.isArray(actors)) {
       return res.status(400).json({ message: "Actors must be an array" });
     }
 
-    const savedActors = await saveActorsService(req.user._id, req.params.id, actors);
-    res.status(200).json({ actors: savedActors });
+    const saved = await saveActorsService(req.user._id, req.params.id, actors, language);
+    res.status(200).json(saved);
   } catch (error) {
     console.error("[project] updateActors error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
@@ -214,17 +243,18 @@ const getExistingSolutions = async (req, res) => {
 // @access  Private
 const updateExistingSolutions = async (req, res) => {
   try {
-    const { existingSolutions } = req.body;
+    const { existingSolutions, language } = req.body;
     if (!Array.isArray(existingSolutions)) {
       return res.status(400).json({ message: "Existing solutions must be an array" });
     }
 
-    const savedSolutions = await saveExistingSolutionsService(
+    const saved = await saveExistingSolutionsService(
       req.user._id,
       req.params.id,
-      existingSolutions
+      existingSolutions,
+      language
     );
-    res.status(200).json({ existingSolutions: savedSolutions });
+    res.status(200).json(saved);
   } catch (error) {
     console.error("[project] updateExistingSolutions error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
@@ -251,17 +281,18 @@ const getFunctionalRequirements = async (req, res) => {
 // @access  Private
 const updateFunctionalRequirements = async (req, res) => {
   try {
-    const { functionalRequirements } = req.body;
+    const { functionalRequirements, language } = req.body;
     if (!Array.isArray(functionalRequirements)) {
       return res.status(400).json({ message: "Functional requirements must be an array" });
     }
 
-    const savedRequirements = await saveFunctionalRequirementsService(
+    const saved = await saveFunctionalRequirementsService(
       req.user._id,
       req.params.id,
-      functionalRequirements
+      functionalRequirements,
+      language
     );
-    res.status(200).json({ functionalRequirements: savedRequirements });
+    res.status(200).json(saved);
   } catch (error) {
     console.error("[project] updateFunctionalRequirements error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
@@ -288,17 +319,18 @@ const getNonFunctionalRequirements = async (req, res) => {
 // @access  Private
 const updateNonFunctionalRequirements = async (req, res) => {
   try {
-    const { nonFunctionalRequirements } = req.body;
+    const { nonFunctionalRequirements, language } = req.body;
     if (!Array.isArray(nonFunctionalRequirements)) {
       return res.status(400).json({ message: "Non-functional requirements must be an array" });
     }
 
-    const savedRequirements = await saveNonFunctionalRequirementsService(
+    const saved = await saveNonFunctionalRequirementsService(
       req.user._id,
       req.params.id,
-      nonFunctionalRequirements
+      nonFunctionalRequirements,
+      language
     );
-    res.status(200).json({ nonFunctionalRequirements: savedRequirements });
+    res.status(200).json(saved);
   } catch (error) {
     console.error("[project] updateNonFunctionalRequirements error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
@@ -325,17 +357,18 @@ const getProductBacklog = async (req, res) => {
 // @access  Private
 const updateProductBacklog = async (req, res) => {
   try {
-    const { productBacklog } = req.body;
+    const { productBacklog, language } = req.body;
     if (!Array.isArray(productBacklog)) {
       return res.status(400).json({ message: "Product backlog must be an array" });
     }
 
-    const savedBacklog = await saveProductBacklogService(
+    const saved = await saveProductBacklogService(
       req.user._id,
       req.params.id,
-      productBacklog
+      productBacklog,
+      language
     );
-    res.status(200).json({ productBacklog: savedBacklog });
+    res.status(200).json(saved);
   } catch (error) {
     console.error("[project] updateProductBacklog error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
@@ -362,17 +395,18 @@ const getReportStructure = async (req, res) => {
 // @access  Private
 const updateReportStructure = async (req, res) => {
   try {
-    const { reportStructure } = req.body;
+    const { reportStructure, language } = req.body;
     if (!Array.isArray(reportStructure)) {
       return res.status(400).json({ message: "Report structure must be an array" });
     }
 
-    const savedStructure = await saveReportStructureService(
+    const saved = await saveReportStructureService(
       req.user._id,
       req.params.id,
-      reportStructure
+      reportStructure,
+      language
     );
-    res.status(200).json({ reportStructure: savedStructure });
+    res.status(200).json(saved);
   } catch (error) {
     console.error("[project] updateReportStructure error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
@@ -451,13 +485,13 @@ const getUmlPreparation = async (req, res) => {
 // @access  Private
 const updateUmlPreparation = async (req, res) => {
   try {
-    const { umlPreparation } = req.body;
+    const { umlPreparation, language } = req.body;
     if (!umlPreparation || typeof umlPreparation !== "object") {
       return res.status(400).json({ message: "UML preparation must be an object" });
     }
 
-    const savedPreparation = await saveUmlPreparationService(req.user._id, req.params.id, umlPreparation);
-    res.status(200).json({ umlPreparation: savedPreparation });
+    const saved = await saveUmlPreparationService(req.user._id, req.params.id, umlPreparation, language);
+    res.status(200).json(saved);
   } catch (error) {
     console.error("[project] updateUmlPreparation error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;

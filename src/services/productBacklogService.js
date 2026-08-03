@@ -3,6 +3,7 @@ const { callOpenRouter } = require("./openRouterService");
 const {
   buildProductBacklogGenerationPrompt,
   buildProductBacklogRefinementPrompt,
+  buildProductBacklogTranslationPrompt,
 } = require("./productBacklogPromptBuilder");
 
 const VALID_PRIORITIES = new Set(["High", "Medium", "Low"]);
@@ -217,13 +218,24 @@ const generateProductBacklog = async (project) => {
   return parseProductBacklogResponse(response, project);
 };
 
-const refineProductBacklog = async (project, currentBacklog) => {
+const refineProductBacklog = async (project, currentBacklog, instructions = "") => {
   const productBacklog = normalizeProductBacklog(currentBacklog, project);
   if (productBacklog.length === 0) {
     throw new Error("Current product backlog is required to refine.");
   }
 
-  const prompt = buildProductBacklogRefinementPrompt(project, productBacklog);
+  const prompt = buildProductBacklogRefinementPrompt(project, productBacklog, instructions);
+  const response = await callOpenRouter(prompt);
+  return parseProductBacklogResponse(response, project);
+};
+
+const translateProductBacklog = async (project, currentBacklog) => {
+  const productBacklog = normalizeProductBacklog(currentBacklog, project);
+  if (productBacklog.length === 0) {
+    throw new Error("Current product backlog is required to translate.");
+  }
+
+  const prompt = buildProductBacklogTranslationPrompt(project, productBacklog);
   const response = await callOpenRouter(prompt);
   return parseProductBacklogResponse(response, project);
 };
@@ -233,12 +245,17 @@ const getProductBacklog = async (userId, projectId) => {
   return normalizeProductBacklog(project.productBacklog || [], project);
 };
 
-const saveProductBacklog = async (userId, projectId, productBacklog) => {
+const saveProductBacklog = async (userId, projectId, productBacklog, language) => {
   const currentProject = await getProjectForUser(userId, projectId);
   const normalizedBacklog = normalizeProductBacklog(productBacklog, currentProject);
+  const updates = { productBacklog: normalizedBacklog };
+  if (language !== undefined) {
+    updates.productBacklogLanguage = language;
+  }
+
   const project = await Project.findOneAndUpdate(
     { _id: projectId, user: userId },
-    { $set: { productBacklog: normalizedBacklog } },
+    { $set: updates },
     { new: true, runValidators: true }
   );
 
@@ -246,12 +263,16 @@ const saveProductBacklog = async (userId, projectId, productBacklog) => {
     throw new Error("Project not found for this user.");
   }
 
-  return project.productBacklog;
+  return {
+    productBacklog: project.productBacklog,
+    language: project.productBacklogLanguage,
+  };
 };
 
 module.exports = {
   generateProductBacklog,
   refineProductBacklog,
+  translateProductBacklog,
   getProductBacklog,
   saveProductBacklog,
   normalizeProductBacklog,

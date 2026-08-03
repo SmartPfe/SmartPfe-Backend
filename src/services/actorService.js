@@ -3,6 +3,7 @@ const { callOpenRouter } = require("./openRouterService");
 const {
   buildActorGenerationPrompt,
   buildActorRefinementPrompt,
+  buildActorTranslationPrompt,
 } = require("./actorPromptBuilder");
 
 const VALID_TYPES = new Set(["primary", "external"]);
@@ -64,13 +65,24 @@ const generateActors = async (project) => {
   return parseActorsResponse(response);
 };
 
-const refineActors = async (project, currentActors) => {
+const refineActors = async (project, currentActors, instructions = "") => {
   const actors = normalizeActors(currentActors);
   if (actors.length === 0) {
     throw new Error("Current actors are required to refine.");
   }
 
-  const prompt = buildActorRefinementPrompt(project, actors);
+  const prompt = buildActorRefinementPrompt(project, actors, instructions);
+  const response = await callOpenRouter(prompt);
+  return parseActorsResponse(response);
+};
+
+const translateActors = async (project, currentActors) => {
+  const actors = normalizeActors(currentActors);
+  if (actors.length === 0) {
+    throw new Error("Current actors are required to translate.");
+  }
+
+  const prompt = buildActorTranslationPrompt(project, actors);
   const response = await callOpenRouter(prompt);
   return parseActorsResponse(response);
 };
@@ -80,11 +92,16 @@ const getActors = async (userId, projectId) => {
   return project.actors || [];
 };
 
-const saveActors = async (userId, projectId, actors) => {
+const saveActors = async (userId, projectId, actors, language) => {
   const normalizedActors = normalizeActors(actors);
+  const updates = { actors: normalizedActors };
+  if (language !== undefined) {
+    updates.actorsLanguage = language;
+  }
+
   const project = await Project.findOneAndUpdate(
     { _id: projectId, user: userId },
-    { $set: { actors: normalizedActors } },
+    { $set: updates },
     { new: true, runValidators: true }
   );
 
@@ -92,12 +109,16 @@ const saveActors = async (userId, projectId, actors) => {
     throw new Error("Project not found for this user.");
   }
 
-  return project.actors;
+  return {
+    actors: project.actors,
+    language: project.actorsLanguage,
+  };
 };
 
 module.exports = {
   generateActors,
   refineActors,
+  translateActors,
   getActors,
   saveActors,
   getProjectForUser,

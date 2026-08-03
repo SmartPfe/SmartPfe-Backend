@@ -3,6 +3,7 @@ const { callOpenRouter } = require("./openRouterService");
 const {
   buildFunctionalRequirementGenerationPrompt,
   buildFunctionalRequirementRefinementPrompt,
+  buildFunctionalRequirementTranslationPrompt,
 } = require("./functionalRequirementPromptBuilder");
 
 const VALID_PRIORITIES = new Set(["Must Have", "Should Have", "Could Have", "Won't Have"]);
@@ -82,13 +83,24 @@ const generateFunctionalRequirements = async (project) => {
   return parseFunctionalRequirementsResponse(response);
 };
 
-const refineFunctionalRequirements = async (project, currentRequirements) => {
+const refineFunctionalRequirements = async (project, currentRequirements, instructions = "") => {
   const requirements = normalizeFunctionalRequirements(currentRequirements);
   if (requirements.length === 0) {
     throw new Error("Current functional requirements are required to refine.");
   }
 
-  const prompt = buildFunctionalRequirementRefinementPrompt(project, requirements);
+  const prompt = buildFunctionalRequirementRefinementPrompt(project, requirements, instructions);
+  const response = await callOpenRouter(prompt);
+  return parseFunctionalRequirementsResponse(response);
+};
+
+const translateFunctionalRequirements = async (project, currentRequirements) => {
+  const requirements = normalizeFunctionalRequirements(currentRequirements);
+  if (requirements.length === 0) {
+    throw new Error("Current functional requirements are required to translate.");
+  }
+
+  const prompt = buildFunctionalRequirementTranslationPrompt(project, requirements);
   const response = await callOpenRouter(prompt);
   return parseFunctionalRequirementsResponse(response);
 };
@@ -98,11 +110,16 @@ const getFunctionalRequirements = async (userId, projectId) => {
   return project.functionalRequirements || [];
 };
 
-const saveFunctionalRequirements = async (userId, projectId, functionalRequirements) => {
+const saveFunctionalRequirements = async (userId, projectId, functionalRequirements, language) => {
   const normalizedRequirements = normalizeFunctionalRequirements(functionalRequirements);
+  const updates = { functionalRequirements: normalizedRequirements };
+  if (language !== undefined) {
+    updates.functionalRequirementsLanguage = language;
+  }
+
   const project = await Project.findOneAndUpdate(
     { _id: projectId, user: userId },
-    { $set: { functionalRequirements: normalizedRequirements } },
+    { $set: updates },
     { new: true, runValidators: true }
   );
 
@@ -110,12 +127,16 @@ const saveFunctionalRequirements = async (userId, projectId, functionalRequireme
     throw new Error("Project not found for this user.");
   }
 
-  return project.functionalRequirements;
+  return {
+    functionalRequirements: project.functionalRequirements,
+    language: project.functionalRequirementsLanguage,
+  };
 };
 
 module.exports = {
   generateFunctionalRequirements,
   refineFunctionalRequirements,
+  translateFunctionalRequirements,
   getFunctionalRequirements,
   saveFunctionalRequirements,
   normalizeFunctionalRequirements,

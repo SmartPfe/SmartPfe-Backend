@@ -109,8 +109,9 @@ ${formatUml(project.umlPreparation || {})}
 `.trim();
 };
 
-const buildReportStructureRefinementPrompt = (project, reportStructure) => {
+const buildReportStructureRefinementPrompt = (project, reportStructure, instructions = "") => {
   const ctx = getProjectContext(project);
+  const studentInstructions = String(instructions || "").trim();
   return `
 You are an academic report architect helping a student refine the Table of Contents for a PFE software engineering report.
 
@@ -124,6 +125,7 @@ ${jsonContract}
 ${rules}
 - Preserve useful existing chapter titles and hierarchy.
 - Remove duplicates, fix weak generic titles, and add missing sections based on project artifacts.
+${studentInstructions ? `\nSTUDENT INSTRUCTIONS (highest priority, while still respecting the rules above):\n${studentInstructions}\n` : ""}
 
 PROJECT CONTEXT:
 ${formatContextString(ctx)}
@@ -145,7 +147,32 @@ ${formatTree(reportStructure)}
 `.trim();
 };
 
+const buildReportStructureTranslationPrompt = (project, reportStructure) => {
+  const ctx = getProjectContext(project);
+  return `
+You are an academic translation assistant.
+
+Your task: Translate the current PFE report Table of Contents to ${ctx.outputLanguage}.
+
+OUTPUT LANGUAGE: ${ctx.outputLanguage}
+Use ${ctx.outputLanguage} for every section title.
+
+${jsonContract}
+
+Rules:
+- Translate only the current report structure titles.
+- Do NOT regenerate, reorganize, add, remove, or merge sections.
+- Preserve every existing id, collapsed value, children array, and hierarchy exactly.
+- Preserve the student's manual edits and meaning as much as possible.
+- Return ONLY valid JSON. No markdown. No explanation. No surrounding text.
+
+CURRENT REPORT STRUCTURE:
+${JSON.stringify({ reportStructure }, null, 2)}
+`.trim();
+};
+
 module.exports = {
   buildReportStructureGenerationPrompt,
   buildReportStructureRefinementPrompt,
+  buildReportStructureTranslationPrompt,
 };

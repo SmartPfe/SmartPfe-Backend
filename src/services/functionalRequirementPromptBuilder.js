@@ -84,8 +84,9 @@ ${formatExistingSolutions(project.existingSolutions || []) || "No existing solut
 `.trim();
 };
 
-const buildFunctionalRequirementRefinementPrompt = (project, requirements) => {
+const buildFunctionalRequirementRefinementPrompt = (project, requirements, instructions = "") => {
   const ctx = getProjectContext(project);
+  const studentInstructions = String(instructions || "").trim();
   return `
 You are an academic software analysis assistant helping a student refine functional requirements for a PFE project.
 
@@ -99,6 +100,7 @@ ${jsonContract}
 ${rules}
 - Preserve useful user-provided requirements and priorities.
 - Keep manually approved requirements unless they are clearly duplicate or irrelevant.
+${studentInstructions ? `\nSTUDENT INSTRUCTIONS (highest priority, while still respecting the rules above):\n${studentInstructions}\n` : ""}
 
 PROJECT CONTEXT:
 ${formatContextString(ctx)}
@@ -114,7 +116,33 @@ ${formatRequirements(requirements)}
 `.trim();
 };
 
+const buildFunctionalRequirementTranslationPrompt = (project, requirements) => {
+  const ctx = getProjectContext(project);
+  return `
+You are an academic translation assistant.
+
+Your task: Translate the current functional requirements to ${ctx.outputLanguage}.
+
+OUTPUT LANGUAGE: ${ctx.outputLanguage}
+Use ${ctx.outputLanguage} for module names, titles, and descriptions.
+
+${jsonContract}
+
+Rules:
+- Translate only the current functional requirements content.
+- Do NOT regenerate, add, remove, merge, or reorder requirements.
+- Preserve each code, priority, and status exactly.
+- Preserve the student's manual edits and meaning as much as possible.
+- Translate module, title, and description.
+- Return ONLY valid JSON. No markdown. No explanation. No surrounding text.
+
+CURRENT FUNCTIONAL REQUIREMENTS:
+${JSON.stringify({ functionalRequirements: requirements }, null, 2)}
+`.trim();
+};
+
 module.exports = {
   buildFunctionalRequirementGenerationPrompt,
   buildFunctionalRequirementRefinementPrompt,
+  buildFunctionalRequirementTranslationPrompt,
 };

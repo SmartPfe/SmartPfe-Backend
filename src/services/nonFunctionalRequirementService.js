@@ -3,6 +3,7 @@ const { callOpenRouter } = require("./openRouterService");
 const {
   buildNonFunctionalRequirementGenerationPrompt,
   buildNonFunctionalRequirementRefinementPrompt,
+  buildNonFunctionalRequirementTranslationPrompt,
 } = require("./nonFunctionalRequirementPromptBuilder");
 
 const VALID_PRIORITIES = new Set(["Must Have", "Should Have", "Could Have", "Won't Have"]);
@@ -105,13 +106,24 @@ const generateNonFunctionalRequirements = async (project) => {
   return parseNonFunctionalRequirementsResponse(response);
 };
 
-const refineNonFunctionalRequirements = async (project, currentRequirements) => {
+const refineNonFunctionalRequirements = async (project, currentRequirements, instructions = "") => {
   const requirements = normalizeNonFunctionalRequirements(currentRequirements);
   if (requirements.length === 0) {
     throw new Error("Current non-functional requirements are required to refine.");
   }
 
-  const prompt = buildNonFunctionalRequirementRefinementPrompt(project, requirements);
+  const prompt = buildNonFunctionalRequirementRefinementPrompt(project, requirements, instructions);
+  const response = await callOpenRouter(prompt);
+  return parseNonFunctionalRequirementsResponse(response);
+};
+
+const translateNonFunctionalRequirements = async (project, currentRequirements) => {
+  const requirements = normalizeNonFunctionalRequirements(currentRequirements);
+  if (requirements.length === 0) {
+    throw new Error("Current non-functional requirements are required to translate.");
+  }
+
+  const prompt = buildNonFunctionalRequirementTranslationPrompt(project, requirements);
   const response = await callOpenRouter(prompt);
   return parseNonFunctionalRequirementsResponse(response);
 };
@@ -121,11 +133,16 @@ const getNonFunctionalRequirements = async (userId, projectId) => {
   return project.nonFunctionalRequirements || [];
 };
 
-const saveNonFunctionalRequirements = async (userId, projectId, nonFunctionalRequirements) => {
+const saveNonFunctionalRequirements = async (userId, projectId, nonFunctionalRequirements, language) => {
   const normalizedRequirements = normalizeNonFunctionalRequirements(nonFunctionalRequirements);
+  const updates = { nonFunctionalRequirements: normalizedRequirements };
+  if (language !== undefined) {
+    updates.nonFunctionalRequirementsLanguage = language;
+  }
+
   const project = await Project.findOneAndUpdate(
     { _id: projectId, user: userId },
-    { $set: { nonFunctionalRequirements: normalizedRequirements } },
+    { $set: updates },
     { new: true, runValidators: true }
   );
 
@@ -133,12 +150,16 @@ const saveNonFunctionalRequirements = async (userId, projectId, nonFunctionalReq
     throw new Error("Project not found for this user.");
   }
 
-  return project.nonFunctionalRequirements;
+  return {
+    nonFunctionalRequirements: project.nonFunctionalRequirements,
+    language: project.nonFunctionalRequirementsLanguage,
+  };
 };
 
 module.exports = {
   generateNonFunctionalRequirements,
   refineNonFunctionalRequirements,
+  translateNonFunctionalRequirements,
   getNonFunctionalRequirements,
   saveNonFunctionalRequirements,
   normalizeNonFunctionalRequirements,

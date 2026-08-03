@@ -126,8 +126,9 @@ ${buildContextBlock(project, chapters, section.id)}
 `.trim();
 };
 
-const buildChapterActionPrompt = (project, section, action, selectedText, currentContent, chapters) => {
+const buildChapterActionPrompt = (project, section, action, selectedText, currentContent, chapters, instructions = "") => {
   const ctx = getProjectContext(project);
+  const studentInstructions = String(instructions || "").trim();
   return `
 You are Smart PFE's AI Report Studio.
 
@@ -149,6 +150,7 @@ Apply the requested action intelligently:
 - Rewrite Selection: rewrite only the selected passage.
 - Regenerate Selection: replace the selected passage with a stronger version.
 - Explain Better: clarify weak or abstract ideas.
+${studentInstructions ? `\nSTUDENT INSTRUCTIONS (highest priority, while still respecting the action and rules above):\n${studentInstructions}\n` : ""}
 
 ${jsonContract}
 
@@ -160,6 +162,39 @@ ${selectedText || "No selected text. Operate on the entire chapter."}
 CURRENT CHAPTER HTML:
 ${currentContent || "No current content."}
 
+${buildContextBlock(project, chapters, section.id)}
+`.trim();
+};
+
+const buildChapterTranslationPrompt = (project, section, currentContent, chapters) => {
+  const ctx = getProjectContext(project);
+  return `
+You are Smart PFE's AI Report Studio translation assistant.
+
+Your task: Translate only the current report section content to ${ctx.outputLanguage}.
+
+OUTPUT LANGUAGE: ${ctx.outputLanguage}
+Write entirely in ${ctx.outputLanguage} unless a technical term must remain in English.
+
+Current section:
+- Title: ${section.title}
+- Section id: ${section.id}
+
+${jsonContract}
+
+Translation rules:
+- Translate only the current chapter content.
+- Do NOT regenerate the section from project context.
+- Do NOT add new claims, examples, metrics, figures, or report parts.
+- Preserve the student's manual edits and meaning as much as possible.
+- Preserve the existing HTML structure where it is useful.
+- Preserve code snippets, URLs, API names, class names, table/figure placeholders, and technical identifiers.
+- Return ONLY valid JSON. No markdown fences. No explanation.
+
+CURRENT CHAPTER HTML:
+${currentContent || "No current content."}
+
+PROJECT CONTEXT FOR TERMINOLOGY ONLY:
 ${buildContextBlock(project, chapters, section.id)}
 `.trim();
 };
@@ -187,5 +222,6 @@ ${chapters.map((chapter, index) => `${index + 1}. ${chapter.title}\n${chapter.co
 module.exports = {
   buildChapterGenerationPrompt,
   buildChapterActionPrompt,
+  buildChapterTranslationPrompt,
   buildCompleteReportPrompt,
 };

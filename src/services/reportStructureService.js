@@ -3,6 +3,7 @@ const { callOpenRouter } = require("./openRouterService");
 const {
   buildReportStructureGenerationPrompt,
   buildReportStructureRefinementPrompt,
+  buildReportStructureTranslationPrompt,
 } = require("./reportStructurePromptBuilder");
 
 const MAX_DEPTH = 3;
@@ -70,10 +71,18 @@ const generateReportStructure = async (project) => {
   return parseReportStructureResponse(response);
 };
 
-const refineReportStructure = async (project, currentStructure) => {
+const refineReportStructure = async (project, currentStructure, instructions = "") => {
   const reportStructure = normalizeSections(currentStructure);
   if (reportStructure.length === 0) throw new Error("Current report structure is required to refine.");
-  const prompt = buildReportStructureRefinementPrompt(project, reportStructure);
+  const prompt = buildReportStructureRefinementPrompt(project, reportStructure, instructions);
+  const response = await callOpenRouter(prompt);
+  return parseReportStructureResponse(response);
+};
+
+const translateReportStructure = async (project, currentStructure) => {
+  const reportStructure = normalizeSections(currentStructure);
+  if (reportStructure.length === 0) throw new Error("Current report structure is required to translate.");
+  const prompt = buildReportStructureTranslationPrompt(project, reportStructure);
   const response = await callOpenRouter(prompt);
   return parseReportStructureResponse(response);
 };
@@ -83,21 +92,30 @@ const getReportStructure = async (userId, projectId) => {
   return normalizeSections(project.reportStructure || []);
 };
 
-const saveReportStructure = async (userId, projectId, reportStructure) => {
+const saveReportStructure = async (userId, projectId, reportStructure, language) => {
   const normalized = normalizeSections(reportStructure);
+  const updates = { reportStructure: normalized };
+  if (language !== undefined) {
+    updates.reportStructureLanguage = language;
+  }
+
   const project = await Project.findOneAndUpdate(
     { _id: projectId, user: userId },
-    { $set: { reportStructure: normalized } },
+    { $set: updates },
     { new: true, runValidators: true }
   );
 
   if (!project) throw new Error("Project not found for this user.");
-  return normalizeSections(project.reportStructure || []);
+  return {
+    reportStructure: normalizeSections(project.reportStructure || []),
+    language: project.reportStructureLanguage,
+  };
 };
 
 module.exports = {
   generateReportStructure,
   refineReportStructure,
+  translateReportStructure,
   getReportStructure,
   saveReportStructure,
   normalizeSections,

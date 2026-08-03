@@ -4,6 +4,7 @@ const { callOpenRouter } = require("./openRouterService");
 const {
   buildChapterGenerationPrompt,
   buildChapterActionPrompt,
+  buildChapterTranslationPrompt,
   buildCompleteReportPrompt,
 } = require("./reportStudioPromptBuilder");
 
@@ -75,6 +76,18 @@ const markdownToLatex = (markdown = "") =>
 const normalizeGeneratedFrom = (items) =>
   Array.isArray(items) ? items.map((item) => String(item || "").trim()).filter(Boolean) : [];
 
+const normalizeLanguage = (language) => {
+  const value = String(language || "").trim();
+  if (!value) return "";
+  const lower = value.toLowerCase();
+  if (lower === "english" || lower === "en") return "en";
+  if (lower === "french" || lower === "fr") return "fr";
+  if (lower === "arabic" || lower === "ar") return "ar";
+  return lower;
+};
+
+const getProjectLanguage = (project) => normalizeLanguage(project?.basics?.language || project?.language);
+
 const normalizeChapter = (chapter = {}) => {
   const contentHtml = String(chapter.contentHtml || "").trim();
   const contentMarkdown = String(chapter.contentMarkdown || htmlToMarkdown(contentHtml)).trim();
@@ -88,6 +101,7 @@ const normalizeChapter = (chapter = {}) => {
     status: VALID_STATUSES.has(chapter.status) ? chapter.status : (stripHtml(normalizedHtml) ? "in-progress" : "not-started"),
     generatedFrom: normalizeGeneratedFrom(chapter.generatedFrom),
     sourceFingerprint: String(chapter.sourceFingerprint || "").trim(),
+    language: normalizeLanguage(chapter.language),
     lastModified: chapter.lastModified || new Date(),
   };
 };
@@ -189,14 +203,17 @@ const generateChapter = async (project, sectionId, detailLevel = "standard", cur
     title: section.title,
     status: "in-progress",
     sourceFingerprint: getSourceFingerprint(project),
+    language: getProjectLanguage(project),
   });
 };
 
-const applyChapterAction = async (project, sectionId, action, currentContent, selectedText, currentChapters = []) => {
+const applyChapterAction = async (project, sectionId, action, currentContent, selectedText, currentChapters = [], instructions = "") => {
   const section = findSection(project.reportStructure || [], sectionId);
   if (!section) throw new Error("Report structure section not found.");
   if (!currentContent || !stripHtml(currentContent)) throw new Error("Current chapter content is required.");
-  const prompt = buildChapterActionPrompt(project, section, action, selectedText, currentContent, currentChapters);
+  const prompt = action === "Translate"
+    ? buildChapterTranslationPrompt(project, section, currentContent, currentChapters)
+    : buildChapterActionPrompt(project, section, action, selectedText, currentContent, currentChapters, instructions);
   const response = await callOpenRouter(prompt);
   const payload = parseAiPayload(response, "chapter");
   return normalizeChapter({
@@ -205,6 +222,7 @@ const applyChapterAction = async (project, sectionId, action, currentContent, se
     title: section.title,
     status: "in-progress",
     sourceFingerprint: getSourceFingerprint(project),
+    language: getProjectLanguage(project),
   });
 };
 

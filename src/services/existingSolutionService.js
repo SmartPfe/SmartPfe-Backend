@@ -3,6 +3,7 @@ const { callOpenRouter } = require("./openRouterService");
 const {
   buildExistingSolutionGenerationPrompt,
   buildExistingSolutionRefinementPrompt,
+  buildExistingSolutionTranslationPrompt,
 } = require("./existingSolutionPromptBuilder");
 
 const normalizeList = (value) => {
@@ -72,13 +73,24 @@ const generateExistingSolutions = async (project) => {
   return parseExistingSolutionsResponse(response);
 };
 
-const refineExistingSolutions = async (project, currentSolutions) => {
+const refineExistingSolutions = async (project, currentSolutions, instructions = "") => {
   const solutions = normalizeExistingSolutions(currentSolutions);
   if (solutions.length === 0) {
     throw new Error("Current existing solutions are required to refine.");
   }
 
-  const prompt = buildExistingSolutionRefinementPrompt(project, solutions);
+  const prompt = buildExistingSolutionRefinementPrompt(project, solutions, instructions);
+  const response = await callOpenRouter(prompt);
+  return parseExistingSolutionsResponse(response);
+};
+
+const translateExistingSolutions = async (project, currentSolutions) => {
+  const solutions = normalizeExistingSolutions(currentSolutions);
+  if (solutions.length === 0) {
+    throw new Error("Current existing solutions are required to translate.");
+  }
+
+  const prompt = buildExistingSolutionTranslationPrompt(project, solutions);
   const response = await callOpenRouter(prompt);
   return parseExistingSolutionsResponse(response);
 };
@@ -88,11 +100,16 @@ const getExistingSolutions = async (userId, projectId) => {
   return project.existingSolutions || [];
 };
 
-const saveExistingSolutions = async (userId, projectId, existingSolutions) => {
+const saveExistingSolutions = async (userId, projectId, existingSolutions, language) => {
   const normalizedSolutions = normalizeExistingSolutions(existingSolutions);
+  const updates = { existingSolutions: normalizedSolutions };
+  if (language !== undefined) {
+    updates.existingSolutionsLanguage = language;
+  }
+
   const project = await Project.findOneAndUpdate(
     { _id: projectId, user: userId },
-    { $set: { existingSolutions: normalizedSolutions } },
+    { $set: updates },
     { new: true, runValidators: true }
   );
 
@@ -100,12 +117,16 @@ const saveExistingSolutions = async (userId, projectId, existingSolutions) => {
     throw new Error("Project not found for this user.");
   }
 
-  return project.existingSolutions;
+  return {
+    existingSolutions: project.existingSolutions,
+    language: project.existingSolutionsLanguage,
+  };
 };
 
 module.exports = {
   generateExistingSolutions,
   refineExistingSolutions,
+  translateExistingSolutions,
   getExistingSolutions,
   saveExistingSolutions,
   normalizeExistingSolutions,

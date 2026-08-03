@@ -77,8 +77,9 @@ ${formatActors(project.actors || []) || "No actors have been defined yet."}
 `.trim();
 };
 
-const buildExistingSolutionRefinementPrompt = (project, solutions) => {
+const buildExistingSolutionRefinementPrompt = (project, solutions, instructions = "") => {
   const ctx = getProjectContext(project);
+  const studentInstructions = String(instructions || "").trim();
   return `
 You are an academic software analysis assistant helping a student improve the "Etude de l'existant" section for a PFE project.
 
@@ -92,6 +93,7 @@ ${jsonContract}
 ${rules}
 - Preserve useful user-provided solutions.
 - Remove duplicates and replace irrelevant solutions with stronger alternatives.
+${studentInstructions ? `\nSTUDENT INSTRUCTIONS (highest priority, while still respecting the rules above):\n${studentInstructions}\n` : ""}
 
 PROJECT CONTEXT:
 ${formatContextString(ctx)}
@@ -104,7 +106,33 @@ ${formatSolutions(solutions)}
 `.trim();
 };
 
+const buildExistingSolutionTranslationPrompt = (project, solutions) => {
+  const ctx = getProjectContext(project);
+  return `
+You are an academic translation assistant.
+
+Your task: Translate the current existing-solutions analysis to ${ctx.outputLanguage}.
+
+OUTPUT LANGUAGE: ${ctx.outputLanguage}
+Use ${ctx.outputLanguage} for all human-readable fields.
+
+${jsonContract}
+
+Rules:
+- Translate only the current existing-solutions content.
+- Do NOT regenerate, add, remove, merge, or reorder solutions.
+- Preserve each solution's icon exactly.
+- Preserve the student's manual edits, meaning, and comparison logic as much as possible.
+- Translate name, category, description, solvedProblem, strengths, weaknesses, and differentiation.
+- Return ONLY valid JSON. No markdown. No explanation. No surrounding text.
+
+CURRENT EXISTING SOLUTIONS:
+${JSON.stringify({ existingSolutions: solutions }, null, 2)}
+`.trim();
+};
+
 module.exports = {
   buildExistingSolutionGenerationPrompt,
   buildExistingSolutionRefinementPrompt,
+  buildExistingSolutionTranslationPrompt,
 };

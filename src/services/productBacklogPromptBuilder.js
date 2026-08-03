@@ -1,7 +1,10 @@
 const { formatContextString, getProjectContext } = require("./openRouterService");
 
+const getPrimaryActors = (actors = []) =>
+  actors.filter((actor) => actor?.type !== "external" && String(actor?.name || "").trim());
+
 const formatActors = (actors = []) =>
-  actors
+  getPrimaryActors(actors)
     .map((actor, index) => `${index + 1}. ${actor.name}: ${actor.description}`)
     .join("\n");
 
@@ -37,7 +40,7 @@ const formatBacklog = (items = []) =>
   items
     .map(
       (item, index) =>
-        `${index + 1}. ${item.code} [${item.priority}] ${item.task}: ${item.notes || "No user story description"}`
+        `${index + 1}. ${item.code} [${item.priority}] Epic: ${item.epic}; Sprint: ${item.sprint || "Sprint missing"}; As a: ${(item.actors || []).join(", ") || "Primary actor missing"}; I want: ${item.task}; Notes: ${item.notes || "No extra details"}`
     )
     .join("\n");
 
@@ -53,13 +56,14 @@ Strict JSON format:
 {
   "productBacklog": [
     {
-      "code": "PB-01",
-      "epic": "Authentication",
-      "task": "Authentication",
-      "priority": "Must",
+      "code": "1.1",
+      "epic": "User Management",
+      "actors": ["Learner", "Trainer"],
+      "task": "Create an account.",
+      "priority": "High",
       "durationDays": 1,
-      "sprint": "",
-      "notes": "En tant qu'utilisateur, je veux m'inscrire et me connecter via email/mot de passe."
+      "sprint": "Sprint 1",
+      "notes": "Allows new primary users to access the application."
     }
   ]
 }
@@ -69,22 +73,27 @@ const buildRules = (project) => {
   const targetDays = getTargetDurationDays(project);
   return `
 Rules:
-- Generate a professional Product Backlog for a final-year project report using exactly this table meaning: ID, Theme/User Story, Description, Priority.
-- Each row must be a concrete functional user story or report-ready project capability.
-- IMPORTANT FORMAT REQUIREMENT: task is the short Theme / User Story title only, while notes is the full Description in User Story format.
-  - If output language is English: "As a <actor>, I want to <goal>, so that <benefit>." (the "so that" part is optional if it doesn't add value).
-  - If output language is French: "En tant que <acteur>, je veux <objectif> afin de <bénéfice>."
+- Generate a professional Product Backlog for a final-year project report using exactly this table meaning: Epic, ID, As a, I want (User Story), Sprint, Priority.
+- Output must always be in English, even if the project context contains French text.
+- Each row must be a concrete functional user story or report-ready application capability.
+- IMPORTANT FORMAT REQUIREMENT: epic is the grouped feature area, actors is an array of primary app actors, task is only the "I want" goal, and notes is a short optional English explanation.
+  - Write task as an English goal only, for example "Create an account." or "Update my profile."
+  - Do not write French backlog content.
 - Use enough tasks for a real PFE project. Small projects: 14-18 tasks. Medium projects: 18-26 tasks. Complex projects: 26-36 tasks.
+- Ignore any French-language examples above. The final JSON must be English only.
 - The total durationDays across all tasks must be approximately ${targetDays} days, based on the onboarding duration (${project.technicalContext?.duration || "unknown"} month(s)).
 - Distribute durations realistically: analysis/design/documentation tasks are usually 2-8 days; implementation tasks can be 4-15 days; testing/deployment tasks are usually 2-8 days.
-- Cover the full PFE lifecycle: analysis, requirements, design, implementation, testing, report writing, presentation preparation, and deployment when relevant.
+- Focus on primary app functionality first. Include project lifecycle/report tasks only when they are genuinely relevant to the PFE planning.
 - Use previous context: project description, problem statement, actors, existing solutions, functional requirements, non-functional requirements, technologies, methodology, and target users.
+- Use ONLY actors from the PRIMARY APP ACTORS list. Do not use external systems, APIs, devices, companies, or secondary stakeholders as backlog actors.
 - Keep task titles short and specific. Do not put the full "En tant que..." sentence in task.
-- Every notes value must start with "En tant" for French output, or "As a"/"As an" for English output.
-- priority must be exactly one of: "Must", "Should", "Could", "Won't".
+- Notes must be English and must not repeat the full user story sentence.
+- priority must be exactly one of: "High", "Medium", "Low".
 - durationDays must be a positive integer.
-- Codes must be sequential: PB-01, PB-02, PB-03, and so on.
-- Use concise epic names such as Analysis, Design, Backend, Frontend, AI, Testing, Documentation, Deployment, Defense Preparation, or project-specific equivalents.
+- sprint must be a non-empty English planning label such as "Sprint 1", "Sprint 2", or "Phase 1".
+- User stories in the same epic may share the same sprint when planned together, or use different sprints when the epic spans multiple iterations.
+- Codes must follow grouped epic numbering like "1.1", "1.2", "2.1", "2.2". Rows in the same epic must share the first number.
+- Use concise epic names such as User Management, Profile Management, Authentication, Dashboard, AI Analysis, Reporting, Administration, Notifications, or project-specific equivalents.
 - Use sprint names only when useful. If the methodology is not sprint-based, use "Phase 1", "Phase 2", etc.
 `.trim();
 };
@@ -96,8 +105,8 @@ You are an academic software project planning assistant helping a student prepar
 
 Your task: Generate a complete, realistic, project-specific Product Backlog table using all available project context.
 
-OUTPUT LANGUAGE: ${ctx.outputLanguage}
-Use ${ctx.outputLanguage} for task titles and notes when appropriate.
+OUTPUT LANGUAGE: English only.
+All epic names, actors, user stories, priorities, notes, and labels must be written in English.
 
 ${jsonContract}
 
@@ -106,8 +115,8 @@ ${buildRules(project)}
 PROJECT CONTEXT:
 ${formatContextString(ctx)}
 
-KNOWN ACTORS AND STAKEHOLDERS:
-${formatActors(project.actors || []) || "No actors have been defined yet."}
+PRIMARY APP ACTORS:
+${formatActors(project.actors || []) || "No primary app actors have been defined yet. Use the main end user as the primary actor."}
 
 EXISTING SOLUTIONS ANALYSIS:
 ${formatExistingSolutions(project.existingSolutions || []) || "No existing solutions have been defined yet."}
@@ -127,8 +136,8 @@ You are an academic software project planning assistant helping a student refine
 
 Your task: Improve the current backlog. Preserve useful student edits, make durations realistic, add missing lifecycle tasks, remove duplicates, and ensure the total duration approximately matches the onboarding duration.
 
-OUTPUT LANGUAGE: ${ctx.outputLanguage}
-Use ${ctx.outputLanguage} for task titles and notes when appropriate.
+OUTPUT LANGUAGE: English only.
+All epic names, actors, user stories, priorities, notes, and labels must be written in English.
 
 ${jsonContract}
 
@@ -139,8 +148,8 @@ ${buildRules(project)}
 PROJECT CONTEXT:
 ${formatContextString(ctx)}
 
-KNOWN ACTORS AND STAKEHOLDERS:
-${formatActors(project.actors || []) || "No actors have been defined yet."}
+PRIMARY APP ACTORS:
+${formatActors(project.actors || []) || "No primary app actors have been defined yet. Use the main end user as the primary actor."}
 
 EXISTING SOLUTIONS ANALYSIS:
 ${formatExistingSolutions(project.existingSolutions || []) || "No existing solutions have been defined yet."}

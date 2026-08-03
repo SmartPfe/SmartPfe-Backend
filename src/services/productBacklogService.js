@@ -9,6 +9,9 @@ const VALID_PRIORITIES = new Set(["High", "Medium", "Low"]);
 
 const normalizePriority = (priority) => {
   const cleaned = String(priority || "").trim().toLowerCase();
+  if (["must", "must have", "high"].includes(cleaned)) return "High";
+  if (["could", "could have", "won't", "wont", "will not", "won't have", "wont have", "low"].includes(cleaned)) return "Low";
+  if (["should", "should have", "medium"].includes(cleaned)) return "Medium";
   if (["haute", "élevée", "elevee", "high"].includes(cleaned)) return "High";
   if (["basse", "faible", "low"].includes(cleaned)) return "Low";
   if (VALID_PRIORITIES.has(priority)) return priority;
@@ -16,9 +19,9 @@ const normalizePriority = (priority) => {
 };
 
 const buildCode = (index, code) => {
-  const cleaned = String(code || "").trim().toUpperCase();
-  if (/^PB-\d{2,3}$/.test(cleaned)) return cleaned;
-  return `PB-${String(index + 1).padStart(2, "0")}`;
+  const cleaned = String(code || "").trim();
+  if (/^\d+\.\d+$/.test(cleaned)) return cleaned;
+  return `1.${index + 1}`;
 };
 
 const normalizeDuration = (durationDays) => {
@@ -27,17 +30,47 @@ const normalizeDuration = (durationDays) => {
   return Math.round(value);
 };
 
-const normalizeMoSCoWPriority = (priority) => {
-  const cleaned = String(priority || "").trim().toLowerCase();
-  if (["must", "must have", "high", "haute", "elevee", "Ã©levÃ©e"].includes(cleaned)) return "Must";
-  if (["could", "could have", "low", "basse", "faible"].includes(cleaned)) return "Could";
-  if (["won't", "wont", "will not", "won't have", "wont have"].includes(cleaned)) return "Won't";
-  return "Should";
-};
+const normalizeSprint = (item, index) =>
+  String(item?.sprint || item?.iteration || item?.phase || `Sprint ${Math.floor(index / 4) + 1}`).trim();
 
 const looksLikeUserStory = (value = "") => {
   const cleaned = String(value || "").trim().toLowerCase();
   return cleaned.startsWith("en tant") || cleaned.startsWith("as a ") || cleaned.startsWith("as an ");
+};
+
+const getPrimaryActorNames = (project = {}) =>
+  (project.actors || [])
+    .filter((actor) => actor?.type !== "external" && String(actor?.name || "").trim())
+    .map((actor) => String(actor.name).trim());
+
+const extractActorFromStory = (value = "") => {
+  const match = String(value || "").trim().match(/^as an?\s+([^,]+),?\s+i want/i);
+  return match?.[1]?.trim() || "";
+};
+
+const normalizeActors = (item, project) => {
+  const primaryActors = getPrimaryActorNames(project);
+  const rawActors = Array.isArray(item?.actors)
+    ? item.actors
+    : item?.actor || item?.asA
+      ? [item.actor || item.asA]
+      : [];
+
+  const storyActor = extractActorFromStory(item?.notes || item?.task || item?.description || "");
+  const candidates = [...rawActors, storyActor]
+    .flatMap((actor) => String(actor || "").split(/[,;\n]/))
+    .map((actor) => actor.trim())
+    .filter(Boolean);
+
+  if (primaryActors.length === 0) {
+    return candidates.length ? Array.from(new Set(candidates)) : ["User"];
+  }
+
+  const matchedActors = candidates
+    .map((actor) => primaryActors.find((primaryActor) => primaryActor.toLowerCase() === actor.toLowerCase()))
+    .filter(Boolean);
+
+  return matchedActors.length ? Array.from(new Set(matchedActors)) : [primaryActors[0]];
 };
 
 const normalizeStoryTitle = (item, index) => {
@@ -53,32 +86,51 @@ const normalizeStoryDescription = (item) => {
   if (description) return description;
   const task = String(item?.task || item?.title || "").trim();
   if (looksLikeUserStory(task)) return task;
-  return task ? `En tant qu'utilisateur, je veux ${task.toLowerCase()}.` : "En tant qu'utilisateur, je veux ...";
+  return task ? `Goal: ${task}` : "";
 };
 
-const normalizeProductBacklog = (items) => {
+const renumberProductBacklog = (items) => {
+  const epicOrder = new Map();
+  const epicCounts = new Map();
+
+  return items.map((item) => {
+    const epic = item.epic || "Project";
+    if (!epicOrder.has(epic)) {
+      epicOrder.set(epic, epicOrder.size + 1);
+    }
+
+    const nextCount = (epicCounts.get(epic) || 0) + 1;
+    epicCounts.set(epic, nextCount);
+
+    return {
+      ...item,
+      code: `${epicOrder.get(epic)}.${nextCount}`,
+    };
+  });
+};
+
+const normalizeProductBacklog = (items, project = {}) => {
   if (!Array.isArray(items)) {
     return [];
   }
 
-  return items
+  const normalizedItems = items
     .map((item, index) => ({
       code: buildCode(index, item?.code || item?.id),
       epic: String(item?.epic || item?.phase || "Project").trim(),
+      actors: normalizeActors(item, project),
       task: normalizeStoryTitle(item, index),
-      priority: normalizeMoSCoWPriority(item?.priority),
+      priority: normalizePriority(item?.priority),
       durationDays: normalizeDuration(item?.durationDays || item?.duration || item?.days),
-      sprint: String(item?.sprint || item?.phase || "").trim(),
+      sprint: normalizeSprint(item, index),
       notes: normalizeStoryDescription(item),
     }))
-    .filter((item) => item.epic && item.task && item.durationDays > 0)
-    .map((item, index) => ({
-      ...item,
-      code: buildCode(index, item.code),
-    }));
+    .filter((item) => item.epic && item.actors.length > 0 && item.task && item.sprint && item.durationDays > 0);
+
+  return renumberProductBacklog(normalizedItems);
 };
 
-const parseProductBacklogResponse = (content) => {
+const parseProductBacklogResponse = (content, project) => {
   const cleaned = extractJsonPayload(content);
 
   let parsed;
@@ -88,7 +140,7 @@ const parseProductBacklogResponse = (content) => {
     throw new Error("AI returned invalid product backlog JSON. Please try again.");
   }
 
-  const productBacklog = normalizeProductBacklog(Array.isArray(parsed) ? parsed : parsed.productBacklog);
+  const productBacklog = normalizeProductBacklog(Array.isArray(parsed) ? parsed : parsed.productBacklog, project);
   if (productBacklog.length === 0) {
     throw new Error("AI did not return any valid product backlog tasks. Please try again.");
   }
@@ -162,27 +214,28 @@ const getProjectForUser = async (userId, projectId = null) => {
 const generateProductBacklog = async (project) => {
   const prompt = buildProductBacklogGenerationPrompt(project);
   const response = await callOpenRouter(prompt);
-  return parseProductBacklogResponse(response);
+  return parseProductBacklogResponse(response, project);
 };
 
 const refineProductBacklog = async (project, currentBacklog) => {
-  const productBacklog = normalizeProductBacklog(currentBacklog);
+  const productBacklog = normalizeProductBacklog(currentBacklog, project);
   if (productBacklog.length === 0) {
     throw new Error("Current product backlog is required to refine.");
   }
 
   const prompt = buildProductBacklogRefinementPrompt(project, productBacklog);
   const response = await callOpenRouter(prompt);
-  return parseProductBacklogResponse(response);
+  return parseProductBacklogResponse(response, project);
 };
 
 const getProductBacklog = async (userId, projectId) => {
   const project = await getProjectForUser(userId, projectId);
-  return project.productBacklog || [];
+  return normalizeProductBacklog(project.productBacklog || [], project);
 };
 
 const saveProductBacklog = async (userId, projectId, productBacklog) => {
-  const normalizedBacklog = normalizeProductBacklog(productBacklog);
+  const currentProject = await getProjectForUser(userId, projectId);
+  const normalizedBacklog = normalizeProductBacklog(productBacklog, currentProject);
   const project = await Project.findOneAndUpdate(
     { _id: projectId, user: userId },
     { $set: { productBacklog: normalizedBacklog } },

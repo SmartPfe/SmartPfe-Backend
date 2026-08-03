@@ -72,14 +72,15 @@ const productBacklogItemSchema = new mongoose.Schema(
   {
     code: { type: String, required: true, trim: true },
     epic: { type: String, required: true, trim: true },
+    actors: { type: [String], default: [] },
     task: { type: String, required: true, trim: true },
     priority: {
       type: String,
-      enum: ["Must", "Should", "Could", "Won't"],
-      default: "Should",
+      enum: ["High", "Medium", "Low"],
+      default: "Medium",
     },
     durationDays: { type: Number, default: 1, min: 1 },
-    sprint: { type: String, default: "", trim: true },
+    sprint: { type: String, default: "Sprint 1", trim: true },
     notes: { type: String, default: "", trim: true },
   },
   { _id: true }

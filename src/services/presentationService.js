@@ -171,7 +171,10 @@ const refinePresentation = async (project, currentPresentation, instructions = "
 
     const prompt = buildPresentationSlideRefinementPrompt(project, presentation, slideId, currentSlide, instructions);
     const response = await callOpenRouter(prompt);
-    const slide = parsePresentationSlideResponse(response, project, currentSlide);
+    const slide = {
+      ...parsePresentationSlideResponse(response, project, currentSlide),
+      language: getProjectLanguage(project),
+    };
     return normalizePresentation({
       ...presentation,
       slides: presentation.slides.map((item) => (item.id === slideId ? slide : item)),
@@ -190,7 +193,10 @@ const translatePresentationSlide = async (project, currentPresentation, slideId)
 
   const prompt = buildPresentationSlideTranslationPrompt(project, presentation, slideId, currentSlide);
   const response = await callOpenRouter(prompt);
-  const slide = parsePresentationSlideResponse(response, project, currentSlide);
+  const slide = {
+    ...parsePresentationSlideResponse(response, project, currentSlide),
+    language: getProjectLanguage(project),
+  };
   return normalizePresentation({
     ...presentation,
     slides: presentation.slides.map((item) => (item.id === slideId ? slide : item)),

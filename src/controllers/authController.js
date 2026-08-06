@@ -14,7 +14,32 @@ const generateToken = (id) => {
 };
 const {
   sendResetPasswordEmail,
+  sendEmailVerificationCode,
 } = require("../services/emailService");
+
+const createVerificationCode = () => String(crypto.randomInt(100000, 1000000));
+
+const hashVerificationCode = (code) =>
+  crypto.createHash("sha256").update(String(code)).digest("hex");
+
+const setEmailVerificationCode = (user) => {
+  const code = createVerificationCode();
+  user.emailVerificationCodeHash = hashVerificationCode(code);
+  user.emailVerificationCodeExpiry = new Date(Date.now() + 15 * 60 * 1000);
+  return code;
+};
+
+const buildAuthResponse = (user, authProvider = "email") => ({
+  _id: user._id,
+  fullName: user.fullName,
+  email: user.email,
+  avatar: user.avatar,
+  authProvider,
+  emailVerified: user.emailVerified !== false,
+  hasCompletedOnboarding: user.hasCompletedOnboarding,
+  role: user.role || "etudiant",
+  token: generateToken(user._id),
+});
 
 // @desc    Register a new user
 // @route   POST /api/auth/register
@@ -22,38 +47,65 @@ const {
 const registerUser = async (req, res) => {
   try {
     const { fullName, email, password } = req.body;
+    const normalizedEmail = String(email || "").trim().toLowerCase();
 
     // Check if user exists
-    const userExists = await User.findOne({ email });
+    const userExists = await User.findOne({ email: normalizedEmail });
 
     if (userExists) {
+      if (userExists.googleId && !userExists.password) {
+        return res.status(400).json({ message: "This email is already connected with Google. Please log in using 'Continue with Google'." });
+      }
+
+      if (userExists.emailVerified === false) {
+        userExists.fullName = fullName || userExists.fullName;
+        userExists.password = password;
+        const verificationCode = setEmailVerificationCode(userExists);
+        await userExists.save();
+
+        const emailResult = await sendEmailVerificationCode(userExists.email, verificationCode);
+        const response = {
+          message: "Verification code sent. Please check your email.",
+          requiresEmailVerification: true,
+          email: userExists.email,
+          emailSent: emailResult.sent === true,
+        };
+
+        if (emailResult.devFallback && process.env.NODE_ENV !== "production") {
+          response.devVerificationCode = emailResult.verificationCode;
+        }
+
+        return res.status(200).json(response);
+      }
+
       return res.status(400).json({ message: "User already exists with this email" });
     }
 
     // Create user
     const user = await User.create({
       fullName,
-      email,
+      email: normalizedEmail,
       password,
+      emailVerified: false,
     });
 
     if (user) {
-      await createAdminNotification({
-        title: "New user registered",
-        message: `${user.fullName} joined the platform as ${user.role || "etudiant"}.`,
-        type: "info",
-      });
+      const verificationCode = setEmailVerificationCode(user);
+      await user.save();
 
-      res.status(201).json({
-        _id: user._id,
-        fullName: user.fullName,
+      const emailResult = await sendEmailVerificationCode(user.email, verificationCode);
+      const response = {
+        message: "Account created. Verification code sent to your email.",
+        requiresEmailVerification: true,
         email: user.email,
-        avatar: user.avatar,
-        authProvider: "email",
-        hasCompletedOnboarding: user.hasCompletedOnboarding,
-        role: user.role || "etudiant",
-        token: generateToken(user._id),
-      });
+        emailSent: emailResult.sent === true,
+      };
+
+      if (emailResult.devFallback && process.env.NODE_ENV !== "production") {
+        response.devVerificationCode = emailResult.verificationCode;
+      }
+
+      res.status(201).json(response);
     } else {
       res.status(400).json({ message: "Invalid user data received" });
     }
@@ -68,30 +120,141 @@ const registerUser = async (req, res) => {
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = String(email || "").trim().toLowerCase();
 
     // Check for user email
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (user && !user.password) {
       return res.status(400).json({ message: "This account was registered using Google. Please log in using 'Continue with Google'." });
     }
 
     if (user && (await user.matchPassword(password))) {
-      res.json({
-        _id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        avatar: user.avatar,
-        authProvider: "email",
-        hasCompletedOnboarding: user.hasCompletedOnboarding,
-        role: user.role || "etudiant",
-        token: generateToken(user._id),
-      });
+      if (user.emailVerified === false) {
+        const verificationCode = setEmailVerificationCode(user);
+        await user.save();
+        const emailResult = await sendEmailVerificationCode(user.email, verificationCode);
+
+        const response = {
+          message: "Please verify your email before logging in. A new code has been sent.",
+          requiresEmailVerification: true,
+          email: user.email,
+          emailSent: emailResult.sent === true,
+        };
+
+        if (emailResult.devFallback && process.env.NODE_ENV !== "production") {
+          response.devVerificationCode = emailResult.verificationCode;
+        }
+
+        return res.status(403).json(response);
+      }
+
+      res.json(buildAuthResponse(user, "email"));
     } else {
       res.status(401).json({ message: "Invalid email or password" });
     }
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// @desc    Verify a newly registered user's email with a code
+// @route   POST /api/auth/verify-email
+// @access  Public
+const verifyEmail = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const normalizedCode = String(code || "").trim();
+
+    if (!normalizedEmail || !normalizedCode) {
+      return res.status(400).json({ message: "Email and verification code are required" });
+    }
+
+    const user = await User.findOne({ email: normalizedEmail });
+
+    if (!user) {
+      return res.status(400).json({ message: "No account was found for this email" });
+    }
+
+    if (user.emailVerified !== false) {
+      return res.status(400).json({
+        message: "This email is already verified. Please log in.",
+        alreadyVerified: true,
+      });
+    }
+
+    const codeHash = hashVerificationCode(normalizedCode);
+    const isCodeValid =
+      user.emailVerificationCodeHash === codeHash &&
+      user.emailVerificationCodeExpiry &&
+      user.emailVerificationCodeExpiry > new Date();
+
+    if (!isCodeValid) {
+      return res.status(400).json({ message: "Invalid or expired verification code" });
+    }
+
+    user.emailVerified = true;
+    user.emailVerificationCodeHash = undefined;
+    user.emailVerificationCodeExpiry = undefined;
+    await user.save();
+
+    await createAdminNotification({
+      title: "New user registered",
+      message: `${user.fullName} joined the platform as ${user.role || "etudiant"}.`,
+      type: "info",
+    });
+
+    return res.status(200).json(buildAuthResponse(user, "email"));
+  } catch (error) {
+    console.error("[auth] verifyEmail error:", error.message);
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// @desc    Resend an email verification code
+// @route   POST /api/auth/resend-verification-code
+// @access  Public
+const resendVerificationCode = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email: normalizedEmail });
+
+    if (!user) {
+      return res.status(400).json({ message: "No account was found for this email" });
+    }
+
+    if (user.emailVerified !== false) {
+      return res.status(200).json({
+        message: "This email is already verified. You can log in now.",
+        alreadyVerified: true,
+      });
+    }
+
+    const verificationCode = setEmailVerificationCode(user);
+    await user.save();
+
+    const emailResult = await sendEmailVerificationCode(user.email, verificationCode);
+    const response = {
+      message: "A new verification code has been sent.",
+      email: user.email,
+      emailSent: emailResult.sent === true,
+    };
+
+    if (emailResult.devFallback && process.env.NODE_ENV !== "production") {
+      response.devVerificationCode = emailResult.verificationCode;
+    }
+
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error("[auth] resendVerificationCode error:", error.message);
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 const getProfile = async (req, res) => {
@@ -171,6 +334,7 @@ const updateProfile = async (req, res) => {
       email: user.email,
       avatar: user.avatar,
       authProvider: "email",
+      emailVerified: user.emailVerified !== false,
       hasCompletedOnboarding: user.hasCompletedOnboarding,
       role: user.role || "etudiant",
       passwordChanged,
@@ -294,6 +458,9 @@ const googleLogin = async (req, res) => {
       if (user) {
         // Link Google ID to existing email account
         user.googleId = googleId;
+        user.emailVerified = true;
+        user.emailVerificationCodeHash = undefined;
+        user.emailVerificationCodeExpiry = undefined;
         if (picture) user.avatar = picture;
         await user.save();
       } else {
@@ -303,6 +470,7 @@ const googleLogin = async (req, res) => {
           email,
           googleId,
           avatar: picture,
+          emailVerified: true,
         });
 
         await createAdminNotification({
@@ -326,6 +494,7 @@ const googleLogin = async (req, res) => {
         email: user.email,
         avatar: user.avatar,
         authProvider: "google",
+        emailVerified: true,
         hasCompletedOnboarding: user.hasCompletedOnboarding,
         role: user.role || "etudiant",
         token: generateToken(user._id),
@@ -342,6 +511,8 @@ const googleLogin = async (req, res) => {
 module.exports = {
   registerUser,
   loginUser,
+  verifyEmail,
+  resendVerificationCode,
   getProfile,
   updateProfile,
   forgotPassword,

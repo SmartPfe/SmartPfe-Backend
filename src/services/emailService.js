@@ -61,6 +61,54 @@ const resetLink =
   }
 };
 
+const sendEmailVerificationCode = async (email, code) => {
+  try {
+    await emailApi.sendTransacEmail({
+      sender: {
+        email: process.env.EMAIL_FROM,
+        name: "PFE Guidance Platform",
+      },
+
+      to: [
+        {
+          email,
+        },
+      ],
+
+      subject: "Verify your email",
+
+      htmlContent: `
+        <h2>Verify your email</h2>
+
+        <p>Use this code to activate your Smart PFE account:</p>
+
+        <p style="font-size: 28px; font-weight: 700; letter-spacing: 8px;">
+          ${code}
+        </p>
+
+        <p>This code expires in 15 minutes.</p>
+      `,
+    });
+
+    return {
+      sent: true,
+    };
+  } catch (error) {
+    console.error("BREVO FULL ERROR:");
+    console.dir(error, { depth: null });
+
+    if (process.env.NODE_ENV !== "production") {
+      return {
+        devFallback: true,
+        verificationCode: code,
+      };
+    }
+
+    throw error;
+  }
+};
+
 module.exports = {
   sendResetPasswordEmail,
+  sendEmailVerificationCode,
 };

@@ -41,6 +41,16 @@ const userSchema = new mongoose.Schema(
     resetTokenExpiry: {
       type: Date,
     },
+    emailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    emailVerificationCodeHash: {
+      type: String,
+    },
+    emailVerificationCodeExpiry: {
+      type: Date,
+    },
     hasCompletedOnboarding: {
       type: Boolean,
       default: false,

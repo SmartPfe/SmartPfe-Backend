@@ -4,6 +4,8 @@ const router = express.Router();
 const {
   registerUser,
   loginUser,
+  verifyEmail,
+  resendVerificationCode,
   getProfile,
   updateProfile,
   forgotPassword,
@@ -16,6 +18,10 @@ const {
 } = require("../middleware/authMiddleware");
 
 router.post("/register", registerUser);
+
+router.post("/verify-email", verifyEmail);
+
+router.post("/resend-verification-code", resendVerificationCode);
 
 router.post("/login", loginUser);
 

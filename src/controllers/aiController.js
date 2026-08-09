@@ -53,6 +53,9 @@ const {
   refinePitchSlide: refinePitchSlideService,
   translatePitchSlide: translatePitchSlideService,
 } = require("../services/pitchService");
+const {
+  analyzeJurySimulation: analyzeJurySimulationService,
+} = require("../services/jurySimulationService");
 
 // @desc    Generate a first draft of the problem statement using AI
 // @route   POST /api/ai/problem-statement/generate
@@ -815,6 +818,61 @@ const translatePitchSlide = async (req, res) => {
   }
 };
 
+// @desc    Analyze a recorded PFE defense attempt
+// @route   POST /api/ai/jury-simulation/analyze
+// @access  Private
+const analyzeJurySimulation = async (req, res) => {
+  try {
+    const { projectId, actualSeconds } = req.body;
+    if (!projectId) {
+      return res.status(400).json({ message: "Project id is required." });
+    }
+
+    let objectiveMetrics = {};
+    if (req.body.objectiveMetrics) {
+      try {
+        objectiveMetrics = JSON.parse(req.body.objectiveMetrics);
+      } catch {
+        objectiveMetrics = {};
+      }
+    }
+
+    let presentation = null;
+    if (req.body.presentation) {
+      try {
+        presentation = JSON.parse(req.body.presentation);
+      } catch {
+        presentation = null;
+      }
+    }
+
+    let pitch = null;
+    if (req.body.pitch) {
+      try {
+        pitch = JSON.parse(req.body.pitch);
+      } catch {
+        pitch = null;
+      }
+    }
+
+    const payload = await analyzeJurySimulationService({
+      userId: req.user._id,
+      projectId,
+      audioFile: req.file,
+      actualSeconds,
+      objectiveMetrics,
+      presentation,
+      pitch,
+    });
+
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error("[ai] analyze jury simulation error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "AI jury simulation analysis failed." });
+  }
+};
+
 module.exports = {
   generateProblemStatement,
   refineProblemStatement,
@@ -851,4 +909,5 @@ module.exports = {
   generatePitchSlide,
   refinePitchSlide,
   translatePitchSlide,
+  analyzeJurySimulation,
 };

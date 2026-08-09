@@ -126,7 +126,15 @@ ${formatContextString(ctx)}
 
 // --- OpenRouter HTTP call with model fallback ---
 
-const callOpenRouterModel = async (model, messages, retryCount = 0) => {
+const callOpenRouterModel = async (model, messages, retryCount = 0, options = {}) => {
+  const requestBody = {
+    model,
+    messages,
+    ...(options.reasoning ? { reasoning: options.reasoning } : {}),
+    ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
+    ...(options.max_tokens ? { max_tokens: options.max_tokens } : {}),
+  };
+
   const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
@@ -135,13 +143,13 @@ const callOpenRouterModel = async (model, messages, retryCount = 0) => {
       "X-Title": "PfeMentor",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ model, messages }),
+    body: JSON.stringify(requestBody),
   });
 
   if (response.status === 429 && retryCount < 1) {
     console.warn(`[openRouter] Model ${model} rate limited (429). Retrying in 2s...`);
     await new Promise((r) => setTimeout(r, 2000));
-    return callOpenRouterModel(model, messages, retryCount + 1);
+    return callOpenRouterModel(model, messages, retryCount + 1, options);
   }
 
   if (!response.ok) {
@@ -159,29 +167,36 @@ const callOpenRouterModel = async (model, messages, retryCount = 0) => {
   return content;
 };
 
-const callOpenRouter = async (systemPrompt, userPrompt = null) => {
+const callOpenRouterMessages = async (messages, options = {}) => {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error("OpenRouter API key is not configured on the server.");
   }
 
-  const messages = [{ role: "system", content: systemPrompt }];
-  if (userPrompt) {
-    messages.push({ role: "user", content: userPrompt });
-  }
-
+  const models = Array.isArray(options.models) && options.models.length ? options.models : OPENROUTER_MODELS;
   const failures = [];
-  for (const model of OPENROUTER_MODELS) {
+  for (const model of models) {
     try {
-      return await callOpenRouterModel(model, messages);
+      return await callOpenRouterModel(model, messages, 0, options);
     } catch (error) {
       failures.push(`${model}: ${error.message}`);
-      console.warn(`[openRouter] Falling back after ${model} failed.`);
+      if (models.length > 1) {
+        console.warn(`[openRouter] Falling back after ${model} failed.`);
+      }
     }
   }
 
   console.error("[openRouter] All fallback models failed:", failures.join(" | "));
   throw new Error("All AI models are currently unavailable. Please wait a moment and try again.");
+};
+
+const callOpenRouter = async (systemPrompt, userPrompt = null) => {
+  const messages = [{ role: "system", content: systemPrompt }];
+  if (userPrompt) {
+    messages.push({ role: "user", content: userPrompt });
+  }
+
+  return callOpenRouterMessages(messages);
 };
 
 // --- Public API ---
@@ -209,4 +224,4 @@ const callAI = async (type, project, currentText = null, options = {}) => {
   return callOpenRouter(systemPrompt, userPrompt);
 };
 
-module.exports = { callAI, callOpenRouter, formatContextString, getProjectContext };
+module.exports = { callAI, callOpenRouter, callOpenRouterMessages, formatContextString, getProjectContext };

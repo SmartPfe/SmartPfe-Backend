@@ -39,6 +39,9 @@ const {
   getPitch: getPitchService,
   savePitch: savePitchService,
 } = require("../services/pitchService");
+const {
+  getJurySimulation: getJurySimulationService,
+} = require("../services/jurySimulationService");
 
 // @desc    Create a new project from onboarding
 // @route   POST /api/projects/onboarding
@@ -565,6 +568,20 @@ const updatePitch = async (req, res) => {
   }
 };
 
+// @desc    Get jury simulation attempts for a project owned by the current user
+// @route   GET /api/projects/:id/jury-simulation
+// @access  Private
+const getJurySimulation = async (req, res) => {
+  try {
+    const payload = await getJurySimulationService(req.user._id, req.params.id);
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error("[project] getJurySimulation error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Server error" });
+  }
+};
+
 module.exports = {
   createProject,
   getMyProject,
@@ -591,4 +608,5 @@ module.exports = {
   updatePresentation,
   getPitch,
   updatePitch,
+  getJurySimulation,
 };

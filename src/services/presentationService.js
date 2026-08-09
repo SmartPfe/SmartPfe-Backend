@@ -70,6 +70,7 @@ const normalizePresentation = (presentation = {}, project = null, fallbackLangua
   durationMinutes: normalizeDuration(presentation.durationMinutes),
   slides: normalizeSlides(presentation.slides, fallbackLanguage),
   sourceFingerprint: String(presentation.sourceFingerprint || (project ? getSourceFingerprint(project) : "")).trim(),
+  version: Number(presentation.version) || (Array.isArray(presentation.slides) && presentation.slides.length ? 1 : 0),
   updatedAt: presentation.updatedAt || new Date(),
 });
 
@@ -144,7 +145,9 @@ const getPresentation = async (userId, projectId) => {
 const savePresentation = async (userId, projectId, presentation) => {
   const project = await getProjectForUser(userId, projectId);
   const normalized = normalizePresentation(presentation, project);
+  const existingVersion = Number(project.presentation?.version) || (project.presentation?.slides?.length ? 1 : 0);
   normalized.sourceFingerprint = getSourceFingerprint(project);
+  normalized.version = normalized.slides.length ? existingVersion + 1 : 0;
   normalized.updatedAt = new Date();
 
   project.presentation = normalized;

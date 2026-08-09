@@ -231,6 +231,65 @@ const pitchSlideSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const jurySimulationSectionFeedbackSchema = new mongoose.Schema(
+  {
+    slideNumber: { type: Number, default: 0 },
+    slideTitle: { type: String, default: "", trim: true },
+    strengths: { type: [String], default: [] },
+    improvements: { type: [String], default: [] },
+    observations: { type: [String], default: [] },
+  },
+  { _id: false }
+);
+
+const jurySimulationAttemptSchema = new mongoose.Schema(
+  {
+    attemptNumber: { type: Number, required: true, min: 1 },
+    presentationVersion: { type: Number, required: true, min: 0 },
+    pitchVersion: { type: Number, required: true, min: 0 },
+    targetSeconds: { type: Number, required: true, min: 0 },
+    actualSeconds: { type: Number, required: true, min: 0 },
+    audio: {
+      mimeType: { type: String, default: "", trim: true },
+      sizeBytes: { type: Number, default: 0, min: 0 },
+    },
+    objectiveMetrics: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+    analysis: {
+      overallScore: { type: Number, default: 0, min: 0, max: 100 },
+      overallLabel: { type: String, default: "", trim: true },
+      categoryScores: {
+        delivery: { type: Number, default: 0, min: 0, max: 100 },
+        clarity: { type: Number, default: 0, min: 0, max: 100 },
+        content: { type: Number, default: 0, min: 0, max: 100 },
+        timing: { type: Number, default: 0, min: 0, max: 100 },
+        structure: { type: Number, default: 0, min: 0, max: 100 },
+      },
+      timing: {
+        targetSeconds: { type: Number, default: 0, min: 0 },
+        actualSeconds: { type: Number, default: 0, min: 0 },
+        differenceSeconds: { type: Number, default: 0 },
+        assessment: { type: String, default: "", trim: true },
+      },
+      fillerWords: {
+        total: { type: Number, default: 0, min: 0 },
+        mostFrequent: { type: [String], default: [] },
+        examples: { type: [String], default: [] },
+      },
+      strengths: { type: [String], default: [] },
+      improvements: { type: [String], default: [] },
+      sectionFeedback: { type: [jurySimulationSectionFeedbackSchema], default: [] },
+      actionPlan: { type: [String], default: [] },
+    },
+    status: {
+      type: String,
+      enum: ["completed", "failed"],
+      default: "completed",
+    },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
 const projectSchema = new mongoose.Schema(
   {
     user: {
@@ -317,13 +376,18 @@ const projectSchema = new mongoose.Schema(
       durationMinutes: { type: Number, enum: [5, 10, 15, 20], default: 10 },
       slides: { type: [presentationSlideSchema], default: [] },
       sourceFingerprint: { type: String, default: "" },
+      version: { type: Number, default: 0, min: 0 },
       updatedAt: { type: Date },
     },
     pitch: {
       durationMinutes: { type: Number, enum: [5, 10, 15, 20], default: 10 },
       slides: { type: [pitchSlideSchema], default: [] },
       sourceFingerprint: { type: String, default: "" },
+      version: { type: Number, default: 0, min: 0 },
       updatedAt: { type: Date },
+    },
+    jurySimulation: {
+      attempts: { type: [jurySimulationAttemptSchema], default: [] },
     },
   },
   { timestamps: true }

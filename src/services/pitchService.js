@@ -132,6 +132,7 @@ const normalizePitch = (pitch = {}, project = null, fallbackLanguage = "") => {
     durationMinutes,
     slides: [...alignedSlides, ...preservedUnmatchedSlides],
     sourceFingerprint: String(pitch.sourceFingerprint || (project ? getSourceFingerprint(project) : "")).trim(),
+    version: Number(pitch.version) || (Array.isArray(pitch.slides) && pitch.slides.length ? 1 : 0),
     updatedAt: pitch.updatedAt || new Date(),
   };
 };
@@ -217,7 +218,9 @@ const savePitch = async (userId, projectId, pitch) => {
     return existing;
   }
 
+  const existingVersion = Number(project.pitch?.version) || (project.pitch?.slides?.length ? 1 : 0);
   normalized.sourceFingerprint = getSourceFingerprint(project);
+  normalized.version = hasPitchSpeech(normalized) ? existingVersion + 1 : 0;
   normalized.updatedAt = new Date();
 
   await Project.updateOne(

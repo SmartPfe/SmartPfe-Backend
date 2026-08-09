@@ -1,4 +1,5 @@
 const express = require("express");
+const multer = require("multer");
 const router = express.Router();
 const {
   generateProblemStatement,
@@ -36,8 +37,17 @@ const {
   generatePitchSlide,
   refinePitchSlide,
   translatePitchSlide,
+  analyzeJurySimulation,
 } = require("../controllers/aiController");
 const { protect } = require("../middleware/authMiddleware");
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 40 * 1024 * 1024,
+    files: 1,
+  },
+});
 
 router.post("/problem-statement/generate", protect, generateProblemStatement);
 router.post("/problem-statement/refine", protect, refineProblemStatement);
@@ -74,5 +84,6 @@ router.post("/pitch/refine", protect, refinePitch);
 router.post("/pitch/slide/generate", protect, generatePitchSlide);
 router.post("/pitch/slide/refine", protect, refinePitchSlide);
 router.post("/pitch/slide/translate", protect, translatePitchSlide);
+router.post("/jury-simulation/analyze", protect, upload.single("audio"), analyzeJurySimulation);
 
 module.exports = router;

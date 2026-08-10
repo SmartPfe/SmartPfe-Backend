@@ -446,12 +446,18 @@ const translateProductBacklog = async (req, res) => {
 // @access  Private
 const generateReportStructure = async (req, res) => {
   try {
+    console.info(`[ai][report-structure][generate] Request received. user=${req.user?._id || "unknown"}`);
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
+      console.warn(`[ai][report-structure][generate] No project found. user=${req.user?._id || "unknown"}`);
       return res.status(404).json({ message: "Project not found for this user." });
     }
 
+    console.info(
+      `[ai][report-structure][generate] Project loaded. project=${project._id} title="${project.basics?.title || "Untitled"}"`
+    );
     const reportStructure = await generateReportStructureService(project);
+    console.info(`[ai][report-structure][generate] Response ready. sections=${reportStructure.length}`);
     res.status(200).json({ reportStructure });
   } catch (error) {
     console.error("[ai] generate report structure error:", error.message);
@@ -464,17 +470,24 @@ const generateReportStructure = async (req, res) => {
 // @access  Private
 const refineReportStructure = async (req, res) => {
   try {
+    console.info(`[ai][report-structure][refine] Request received. user=${req.user?._id || "unknown"}`);
     const { reportStructure, instructions } = req.body;
     if (!Array.isArray(reportStructure) || reportStructure.length === 0) {
+      console.warn("[ai][report-structure][refine] Rejected: current report structure is missing.");
       return res.status(400).json({ message: "Current report structure is required to refine." });
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
+      console.warn(`[ai][report-structure][refine] No project found. user=${req.user?._id || "unknown"}`);
       return res.status(404).json({ message: "Project not found for this user." });
     }
 
+    console.info(
+      `[ai][report-structure][refine] Project loaded. project=${project._id} currentSections=${reportStructure.length} hasInstructions=${Boolean(String(instructions || "").trim())}`
+    );
     const refinedStructure = await refineReportStructureService(project, reportStructure, instructions);
+    console.info(`[ai][report-structure][refine] Response ready. sections=${refinedStructure.length}`);
     res.status(200).json({ reportStructure: refinedStructure });
   } catch (error) {
     console.error("[ai] refine report structure error:", error.message);

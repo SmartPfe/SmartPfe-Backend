@@ -8,7 +8,10 @@ dotenv.config();
 connectDB();
 
 const app = express();
-console.log("MONGO_URI =", process.env.MONGO_URI);
+const maskedMongoUri = process.env.MONGO_URI
+  ? process.env.MONGO_URI.replace(/\/\/([^:]+):([^@]+)@/, "//$1:***@")
+  : "not configured";
+console.log("MONGO_URI =", maskedMongoUri);
 
 const authRoutes = require("./routes/authRoutes");
 const projectRoutes = require("./routes/projectRoutes");

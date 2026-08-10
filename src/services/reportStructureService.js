@@ -5,6 +5,7 @@ const {
   buildReportStructureRefinementPrompt,
   buildReportStructureTranslationPrompt,
 } = require("./reportStructurePromptBuilder");
+const { getReportStructureRagContext } = require("./reportStructureRagService");
 
 const MAX_DEPTH = 3;
 
@@ -66,7 +67,11 @@ const getProjectForUser = async (userId, projectId = null) => {
 };
 
 const generateReportStructure = async (project) => {
-  const prompt = buildReportStructureGenerationPrompt(project);
+  const ragContext = await getReportStructureRagContext(project, "generate");
+  const prompt = buildReportStructureGenerationPrompt(project, ragContext);
+  console.info(
+    `[report-structure][generate] RAG context injected: ${ragContext ? "yes" : "no"} contextChars=${ragContext.length} promptChars=${prompt.length}`
+  );
   const response = await callOpenRouter(prompt);
   return parseReportStructureResponse(response);
 };
@@ -74,7 +79,11 @@ const generateReportStructure = async (project) => {
 const refineReportStructure = async (project, currentStructure, instructions = "") => {
   const reportStructure = normalizeSections(currentStructure);
   if (reportStructure.length === 0) throw new Error("Current report structure is required to refine.");
-  const prompt = buildReportStructureRefinementPrompt(project, reportStructure, instructions);
+  const ragContext = await getReportStructureRagContext(project, "refine");
+  const prompt = buildReportStructureRefinementPrompt(project, reportStructure, instructions, ragContext);
+  console.info(
+    `[report-structure][refine] RAG context injected: ${ragContext ? "yes" : "no"} contextChars=${ragContext.length} promptChars=${prompt.length}`
+  );
   const response = await callOpenRouter(prompt);
   return parseReportStructureResponse(response);
 };

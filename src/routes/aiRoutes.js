@@ -49,6 +49,11 @@ const upload = multer({
   },
 });
 
+const traceReportStructureRequest = (req, res, next) => {
+  console.info(`[ai-route][report-structure] ${req.method} ${req.originalUrl}`);
+  next();
+};
+
 router.post("/problem-statement/generate", protect, generateProblemStatement);
 router.post("/problem-statement/refine", protect, refineProblemStatement);
 router.post("/problem-statement/translate", protect, translateProblemStatement);
@@ -67,8 +72,8 @@ router.post("/non-functional-requirements/translate", protect, translateNonFunct
 router.post("/product-backlog/generate", protect, generateProductBacklog);
 router.post("/product-backlog/refine", protect, refineProductBacklog);
 router.post("/product-backlog/translate", protect, translateProductBacklog);
-router.post("/report-structure/generate", protect, generateReportStructure);
-router.post("/report-structure/refine", protect, refineReportStructure);
+router.post("/report-structure/generate", traceReportStructureRequest, protect, generateReportStructure);
+router.post("/report-structure/refine", traceReportStructureRequest, protect, refineReportStructure);
 router.post("/report-structure/translate", protect, translateReportStructure);
 router.post("/report-studio/chapter/generate", protect, generateReportChapter);
 router.post("/report-studio/chapter/action", protect, applyReportChapterAction);

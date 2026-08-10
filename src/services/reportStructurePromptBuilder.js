@@ -69,8 +69,26 @@ Rules:
 - Every node must have a stable unique id, a non-empty title, collapsed false, and children array.
 `.trim();
 
-const buildReportStructureGenerationPrompt = (project) => {
+const formatRetrievedReferenceContext = (ragContext = "") => {
+  const context = String(ragContext || "").trim();
+  if (!context) return "";
+
+  return `
+RELEVANT PFE REPORT REFERENCES:
+Use the retrieved PFE report examples below only as supporting academic references.
+- Do not copy their structure blindly.
+- Do not mention retrieved references, RAG, vector search, MongoDB, or internal knowledge base details to the student.
+- Do not invent sections unrelated to the student's project.
+- Adapt any useful academic organization patterns to the student's actual project type, requirements, technologies, methodology, and constraints.
+- The student's own project context has priority over these references.
+
+${context}
+`.trim();
+};
+
+const buildReportStructureGenerationPrompt = (project, ragContext = "") => {
   const ctx = getProjectContext(project);
+  const retrievedReferenceContext = formatRetrievedReferenceContext(ragContext);
   return `
 You are an academic report architect helping a student define the complete Table of Contents for a PFE software engineering report.
 
@@ -83,6 +101,7 @@ ${jsonContract}
 
 ${rules}
 
+${retrievedReferenceContext ? `${retrievedReferenceContext}\n\n` : ""}
 PROJECT CONTEXT:
 ${formatContextString(ctx)}
 
@@ -109,9 +128,10 @@ ${formatUml(project.umlPreparation || {})}
 `.trim();
 };
 
-const buildReportStructureRefinementPrompt = (project, reportStructure, instructions = "") => {
+const buildReportStructureRefinementPrompt = (project, reportStructure, instructions = "", ragContext = "") => {
   const ctx = getProjectContext(project);
   const studentInstructions = String(instructions || "").trim();
+  const retrievedReferenceContext = formatRetrievedReferenceContext(ragContext);
   return `
 You are an academic report architect helping a student refine the Table of Contents for a PFE software engineering report.
 
@@ -127,6 +147,7 @@ ${rules}
 - Remove duplicates, fix weak generic titles, and add missing sections based on project artifacts.
 ${studentInstructions ? `\nSTUDENT INSTRUCTIONS (highest priority, while still respecting the rules above):\n${studentInstructions}\n` : ""}
 
+${retrievedReferenceContext ? `${retrievedReferenceContext}\n\n` : ""}
 PROJECT CONTEXT:
 ${formatContextString(ctx)}
 
@@ -175,4 +196,5 @@ module.exports = {
   buildReportStructureGenerationPrompt,
   buildReportStructureRefinementPrompt,
   buildReportStructureTranslationPrompt,
+  formatRetrievedReferenceContext,
 };

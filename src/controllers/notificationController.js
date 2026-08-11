@@ -16,6 +16,35 @@ const getNotifications = async (req, res) => {
   }
 };
 
+const getUnreadCount = async (req, res) => {
+  try {
+    const count = await Notification.countDocuments({ user: req.user._id, read: false });
+    res.status(200).json({ count });
+  } catch (error) {
+    console.error("[notification] getUnreadCount error:", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+const markNotificationRead = async (req, res) => {
+  try {
+    const notification = await Notification.findOneAndUpdate(
+      { _id: req.params.id, user: req.user._id },
+      { read: true },
+      { new: true }
+    );
+
+    if (!notification) {
+      return res.status(404).json({ message: "Notification not found" });
+    }
+
+    res.status(200).json(notification);
+  } catch (error) {
+    console.error("[notification] markNotificationRead error:", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 const markNotificationsRead = async (req, res) => {
   try {
     await Notification.updateMany({ user: req.user._id, read: false }, { read: true });
@@ -57,6 +86,8 @@ const streamNotifications = async (req, res) => {
 
 module.exports = {
   getNotifications,
+  getUnreadCount,
+  markNotificationRead,
   markNotificationsRead,
   streamNotifications,
 };

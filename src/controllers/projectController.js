@@ -1,6 +1,10 @@
 const Project = require("../models/Project");
 const User = require("../models/User");
-const { createNotification, createAdminNotification } = require("../services/notificationService");
+const {
+  createNotification,
+  createAdminNotification,
+  createGenerationNotification,
+} = require("../services/notificationService");
 const { getActors: getActorsService, saveActors: saveActorsService } = require("../services/actorService");
 const {
   getExistingSolutions: getExistingSolutionsService,
@@ -42,6 +46,17 @@ const {
 const {
   getJurySimulation: getJurySimulationService,
 } = require("../services/jurySimulationService");
+
+const createGenerationNotificationIfRequested = async (req, projectId) => {
+  const feature = String(req.body?.generationFeature || "").trim();
+  if (!feature || req.body?.notifyGenerationAfterSave !== true) return;
+
+  await createGenerationNotification({
+    userId: req.user._id,
+    projectId,
+    feature,
+  });
+};
 
 // @desc    Create a new project from onboarding
 // @route   POST /api/projects/onboarding
@@ -183,6 +198,8 @@ const updateProblemStatement = async (req, res) => {
       return res.status(404).json({ message: "Project not found for this user" });
     }
 
+    await createGenerationNotificationIfRequested(req, project._id);
+
     res.status(200).json({ 
       problemStatement: project.description.problemStatement,
       language: project.description.problemStatementLanguage,
@@ -219,6 +236,7 @@ const updateActors = async (req, res) => {
     }
 
     const saved = await saveActorsService(req.user._id, req.params.id, actors, language);
+    await createGenerationNotificationIfRequested(req, req.params.id);
     res.status(200).json(saved);
   } catch (error) {
     console.error("[project] updateActors error:", error.message);
@@ -257,6 +275,7 @@ const updateExistingSolutions = async (req, res) => {
       existingSolutions,
       language
     );
+    await createGenerationNotificationIfRequested(req, req.params.id);
     res.status(200).json(saved);
   } catch (error) {
     console.error("[project] updateExistingSolutions error:", error.message);
@@ -295,6 +314,7 @@ const updateFunctionalRequirements = async (req, res) => {
       functionalRequirements,
       language
     );
+    await createGenerationNotificationIfRequested(req, req.params.id);
     res.status(200).json(saved);
   } catch (error) {
     console.error("[project] updateFunctionalRequirements error:", error.message);
@@ -333,6 +353,7 @@ const updateNonFunctionalRequirements = async (req, res) => {
       nonFunctionalRequirements,
       language
     );
+    await createGenerationNotificationIfRequested(req, req.params.id);
     res.status(200).json(saved);
   } catch (error) {
     console.error("[project] updateNonFunctionalRequirements error:", error.message);
@@ -371,6 +392,7 @@ const updateProductBacklog = async (req, res) => {
       productBacklog,
       language
     );
+    await createGenerationNotificationIfRequested(req, req.params.id);
     res.status(200).json(saved);
   } catch (error) {
     console.error("[project] updateProductBacklog error:", error.message);
@@ -409,6 +431,7 @@ const updateReportStructure = async (req, res) => {
       reportStructure,
       language
     );
+    await createGenerationNotificationIfRequested(req, req.params.id);
     res.status(200).json(saved);
   } catch (error) {
     console.error("[project] updateReportStructure error:", error.message);
@@ -442,6 +465,7 @@ const updateReportChapters = async (req, res) => {
     }
 
     const payload = await saveReportChaptersService(req.user._id, req.params.id, reportChapters);
+    await createGenerationNotificationIfRequested(req, req.params.id);
     res.status(200).json(payload);
   } catch (error) {
     console.error("[project] updateReportChapters error:", error.message);
@@ -461,6 +485,7 @@ const updateFinalReport = async (req, res) => {
     }
 
     const savedFinalReport = await saveFinalReportService(req.user._id, req.params.id, finalReport);
+    await createGenerationNotificationIfRequested(req, req.params.id);
     res.status(200).json({ finalReport: savedFinalReport });
   } catch (error) {
     console.error("[project] updateFinalReport error:", error.message);
@@ -494,6 +519,7 @@ const updateUmlPreparation = async (req, res) => {
     }
 
     const saved = await saveUmlPreparationService(req.user._id, req.params.id, umlPreparation, language);
+    await createGenerationNotificationIfRequested(req, req.params.id);
     res.status(200).json(saved);
   } catch (error) {
     console.error("[project] updateUmlPreparation error:", error.message);
@@ -527,6 +553,7 @@ const updatePresentation = async (req, res) => {
     }
 
     const savedPresentation = await savePresentationService(req.user._id, req.params.id, presentation);
+    await createGenerationNotificationIfRequested(req, req.params.id);
     res.status(200).json({ presentation: savedPresentation });
   } catch (error) {
     console.error("[project] updatePresentation error:", error.message);
@@ -560,6 +587,7 @@ const updatePitch = async (req, res) => {
     }
 
     const savedPitch = await savePitchService(req.user._id, req.params.id, pitch);
+    await createGenerationNotificationIfRequested(req, req.params.id);
     res.status(200).json({ pitch: savedPitch });
   } catch (error) {
     console.error("[project] updatePitch error:", error.message);

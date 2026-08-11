@@ -56,6 +56,15 @@ const {
 const {
   analyzeJurySimulation: analyzeJurySimulationService,
 } = require("../services/jurySimulationService");
+const { createGenerationNotification } = require("../services/notificationService");
+
+const notifyGenerationComplete = async (req, project, feature) => {
+  await createGenerationNotification({
+    userId: req.user._id,
+    projectId: project._id,
+    feature,
+  });
+};
 
 // @desc    Generate a first draft of the problem statement using AI
 // @route   POST /api/ai/problem-statement/generate
@@ -68,6 +77,7 @@ const generateProblemStatement = async (req, res) => {
     }
 
     const suggestion = await callAI("generate", project);
+    await notifyGenerationComplete(req, project, "problemStatement");
     res.status(200).json({ suggestion });
   } catch (error) {
     console.error("[ai] generate error:", error.message);
@@ -132,6 +142,7 @@ const generateActors = async (req, res) => {
     }
 
     const actors = await generateActorsService(project);
+    await notifyGenerationComplete(req, project, "actors");
     res.status(200).json({ actors });
   } catch (error) {
     console.error("[ai] generate actors error:", error.message);
@@ -196,6 +207,7 @@ const generateExistingSolutions = async (req, res) => {
     }
 
     const existingSolutions = await generateExistingSolutionsService(project);
+    await notifyGenerationComplete(req, project, "existingSolutions");
     res.status(200).json({ existingSolutions });
   } catch (error) {
     console.error("[ai] generate existing solutions error:", error.message);
@@ -260,6 +272,7 @@ const generateFunctionalRequirements = async (req, res) => {
     }
 
     const functionalRequirements = await generateFunctionalRequirementsService(project);
+    await notifyGenerationComplete(req, project, "functionalRequirements");
     res.status(200).json({ functionalRequirements });
   } catch (error) {
     console.error("[ai] generate functional requirements error:", error.message);
@@ -324,6 +337,7 @@ const generateNonFunctionalRequirements = async (req, res) => {
     }
 
     const nonFunctionalRequirements = await generateNonFunctionalRequirementsService(project);
+    await notifyGenerationComplete(req, project, "nonFunctionalRequirements");
     res.status(200).json({ nonFunctionalRequirements });
   } catch (error) {
     console.error("[ai] generate non-functional requirements error:", error.message);
@@ -388,6 +402,7 @@ const generateProductBacklog = async (req, res) => {
     }
 
     const productBacklog = await generateProductBacklogService(project);
+    await notifyGenerationComplete(req, project, "productBacklog");
     res.status(200).json({ productBacklog });
   } catch (error) {
     console.error("[ai] generate product backlog error:", error.message);
@@ -458,6 +473,7 @@ const generateReportStructure = async (req, res) => {
     );
     const reportStructure = await generateReportStructureService(project);
     console.info(`[ai][report-structure][generate] Response ready. sections=${reportStructure.length}`);
+    await notifyGenerationComplete(req, project, "reportStructure");
     res.status(200).json({ reportStructure });
   } catch (error) {
     console.error("[ai] generate report structure error:", error.message);
@@ -534,6 +550,7 @@ const generateReportChapter = async (req, res) => {
     }
 
     const chapter = await generateReportChapterService(project, sectionId, detailLevel, reportChapters);
+    await notifyGenerationComplete(req, project, "reportBuilder");
     res.status(200).json({ chapter });
   } catch (error) {
     console.error("[ai] generate report chapter error:", error.message);
@@ -585,6 +602,11 @@ const generateCompleteReport = async (req, res) => {
 
     const finalReport = await generateCompleteReportService(project, reportChapters);
     const savedFinalReport = await saveFinalReportService(req.user._id, project._id, finalReport);
+    await createGenerationNotification({
+      userId: req.user._id,
+      projectId: project._id,
+      feature: "completeReport",
+    });
     res.status(200).json({ finalReport: savedFinalReport });
   } catch (error) {
     console.error("[ai] generate complete report error:", error.message);
@@ -604,6 +626,7 @@ const generateUmlPreparation = async (req, res) => {
 
     const { diagramType, currentUmlPreparation } = req.body || {};
     const umlPreparation = await generateUmlPreparationService(project, diagramType, currentUmlPreparation);
+    await notifyGenerationComplete(req, project, "umlPreparation");
     res.status(200).json({ umlPreparation });
   } catch (error) {
     console.error("[ai] generate UML preparation error:", error.message);
@@ -669,6 +692,7 @@ const generatePresentation = async (req, res) => {
     }
 
     const presentation = await generatePresentationService(project, durationMinutes);
+    await notifyGenerationComplete(req, project, "presentation");
     res.status(200).json({ presentation });
   } catch (error) {
     console.error("[ai] generate presentation error:", error.message);
@@ -733,6 +757,7 @@ const generatePitch = async (req, res) => {
     }
 
     const pitch = await generatePitchService(project);
+    await notifyGenerationComplete(req, project, "pitch");
     res.status(200).json({ pitch });
   } catch (error) {
     console.error("[ai] generate pitch error:", error.message);
@@ -779,6 +804,7 @@ const generatePitchSlide = async (req, res) => {
     }
 
     const nextPitch = await generatePitchSlideService(project, pitch || {}, slideId);
+    await notifyGenerationComplete(req, project, "pitchSlide");
     res.status(200).json({ pitch: nextPitch });
   } catch (error) {
     console.error("[ai] generate pitch slide error:", error.message);
@@ -877,6 +903,12 @@ const analyzeJurySimulation = async (req, res) => {
       objectiveMetrics,
       presentation,
       pitch,
+    });
+
+    await createGenerationNotification({
+      userId: req.user._id,
+      projectId,
+      feature: "jurySimulation",
     });
 
     res.status(200).json(payload);

@@ -8,6 +8,17 @@ const notificationSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Project",
+      index: true,
+    },
+    feature: {
+      type: String,
+      trim: true,
+      default: "",
+      index: true,
+    },
     title: {
       type: String,
       required: true,
@@ -20,8 +31,13 @@ const notificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["success", "info", "warning", "error"],
+      enum: ["success", "info", "warning", "error", "generation_complete"],
       default: "info",
+    },
+    link: {
+      type: String,
+      trim: true,
+      default: "",
     },
     read: {
       type: Boolean,

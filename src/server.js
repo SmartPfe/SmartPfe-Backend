@@ -18,10 +18,19 @@ const projectRoutes = require("./routes/projectRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const aiRoutes = require("./routes/aiRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const contactRoutes = require("./routes/contactRoutes");
 
-const allowedOrigins = process.env.FRONTEND_URL
-  ? process.env.FRONTEND_URL.split(',')
-  : ['http://localhost:3000'];
+const configuredOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(",").map((origin) => origin.trim()).filter(Boolean)
+  : [];
+
+const allowedOrigins = Array.from(
+  new Set([
+    ...configuredOrigins,
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+  ])
+);
 
 app.use(cors({
   origin: function (origin, callback) {
@@ -40,6 +49,7 @@ app.use("/api/projects", projectRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/contact", contactRoutes);
 
 app.get("/", (req, res) => {
   res.send("🚀 SmartPFE Backend Running");

@@ -108,7 +108,79 @@ const sendEmailVerificationCode = async (email, code) => {
   }
 };
 
+const escapeHtml = (value = "") =>
+  String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+const sendContactMessageEmail = async ({ name, email, subject, message }) => {
+  const contactRecipient = process.env.CONTACT_TO_EMAIL || process.env.EMAIL_FROM;
+
+  if (!process.env.BREVO_API_KEY || !process.env.EMAIL_FROM || !contactRecipient) {
+    if (process.env.NODE_ENV !== "production") {
+      console.info("[contact] Email not configured. Dev fallback:", {
+        name,
+        email,
+        subject,
+        message,
+      });
+
+      return {
+        devFallback: true,
+      };
+    }
+
+    throw new Error("Contact email is not configured");
+  }
+
+  try {
+    await emailApi.sendTransacEmail({
+      sender: {
+        email: process.env.EMAIL_FROM,
+        name: "PFE Guidance Platform",
+      },
+      to: [
+        {
+          email: contactRecipient,
+        },
+      ],
+      replyTo: {
+        email,
+        name,
+      },
+      subject: `[PFE Guidance Contact] ${subject}`,
+      htmlContent: `
+        <h2>New PFE Guidance contact message</h2>
+        <p><strong>Name:</strong> ${escapeHtml(name)}</p>
+        <p><strong>Email:</strong> ${escapeHtml(email)}</p>
+        <p><strong>Subject:</strong> ${escapeHtml(subject)}</p>
+        <p><strong>Message:</strong></p>
+        <p style="white-space: pre-wrap;">${escapeHtml(message)}</p>
+      `,
+    });
+
+    return {
+      sent: true,
+    };
+  } catch (error) {
+    console.error("BREVO CONTACT ERROR:");
+    console.dir(error, { depth: null });
+
+    if (process.env.NODE_ENV !== "production") {
+      return {
+        devFallback: true,
+      };
+    }
+
+    throw error;
+  }
+};
+
 module.exports = {
   sendResetPasswordEmail,
   sendEmailVerificationCode,
+  sendContactMessageEmail,
 };

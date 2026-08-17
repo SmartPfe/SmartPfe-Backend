@@ -45,21 +45,57 @@ const normalizeRelationships = (relationships, classNames) => {
 };
 
 const normalizeUseCase = (useCase = {}) => {
-  const actors = normalizeList(useCase.actors);
+  const primaryActors = normalizeList(useCase.primaryActors?.length ? useCase.primaryActors : useCase.actors);
+  const secondaryActors = normalizeList(useCase.secondaryActors);
+  const allActors = Array.from(new Set([...primaryActors, ...secondaryActors, ...normalizeList(useCase.actors)]));
   const useCases = normalizeList(useCase.useCases);
-  const links = Array.isArray(useCase.links)
+
+  const rawLinks = Array.isArray(useCase.actorLinks)
+    ? useCase.actorLinks
+    : Array.isArray(useCase.links)
     ? useCase.links
-        .map((link) => ({
-          actor: String(link?.actor || "").trim(),
-          useCase: String(link?.useCase || "").trim(),
-        }))
-        .filter((link) => link.actor && link.useCase)
     : [];
-  return { actors, useCases, links };
+
+  const links = rawLinks
+    .map((link) => ({
+      actor: String(link?.actor || "").trim(),
+      useCase: String(link?.useCase || "").trim(),
+    }))
+    .filter((link) => link.actor && link.useCase);
+
+  const useCaseRelations = Array.isArray(useCase.useCaseRelations)
+    ? useCase.useCaseRelations
+        .map((rel) => ({
+          source: String(rel?.source || "").trim(),
+          target: String(rel?.target || "").trim(),
+          type: rel?.type === "extend" ? "extend" : "include",
+        }))
+        .filter((rel) => rel.source && rel.target)
+    : [];
+
+  return {
+    systemName: String(useCase.systemName || "System Platform").trim(),
+    primaryActors: primaryActors.length ? primaryActors : (allActors.length ? allActors : ["User"]),
+    secondaryActors,
+    actors: allActors.length ? allActors : ["User"],
+    useCases: useCases.length ? useCases : ["Process Action"],
+    links,
+    useCaseRelations,
+  };
 };
 
 const normalizeSequence = (sequence = {}) => {
-  const participants = normalizeList(sequence.participants);
+  const rawParticipants = Array.isArray(sequence.participants) ? sequence.participants : [];
+  const participants = rawParticipants.map((p) => {
+    if (typeof p === "string") {
+      return { name: p.trim(), type: "participant" };
+    }
+    return {
+      name: String(p?.name || "Participant").trim(),
+      type: String(p?.type || "participant").trim(),
+    };
+  }).filter((p) => p.name);
+
   const messages = Array.isArray(sequence.messages)
     ? sequence.messages
         .map((message) => ({
@@ -67,13 +103,48 @@ const normalizeSequence = (sequence = {}) => {
           target: String(message?.target || "").trim(),
           message: String(message?.message || "").trim(),
           response: Boolean(message?.response),
+          type: String(message?.type || (message?.response ? "return" : "sync")).trim(),
         }))
         .filter((message) => message.source && message.target && message.message)
     : [];
-  return { participants, messages };
+
+  const altFlow = sequence.altFlow && sequence.altFlow.condition
+    ? {
+        condition: String(sequence.altFlow.condition || "").trim(),
+        messages: Array.isArray(sequence.altFlow.messages)
+          ? sequence.altFlow.messages
+              .map((m) => ({
+                source: String(m?.source || "").trim(),
+                target: String(m?.target || "").trim(),
+                message: String(m?.message || "").trim(),
+                response: Boolean(m?.response),
+              }))
+              .filter((m) => m.source && m.target && m.message)
+          : [],
+      }
+    : { condition: "", messages: [] };
+
+  return {
+    scenario: String(sequence.scenario || "Core Execution Flow").trim(),
+    participants: participants.length ? participants : [{ name: "User", type: "actor" }, { name: "System", type: "boundary" }],
+    messages,
+    altFlow,
+  };
 };
 
 const normalizeActivity = (activity = {}) => {
+  const steps = Array.isArray(activity.steps)
+    ? activity.steps
+        .map((step) => ({
+          type: step?.type === "decision" ? "decision" : "action",
+          label: String(step?.label || "").trim(),
+          condition: String(step?.condition || "").trim(),
+          thenBranch: String(step?.thenBranch || "").trim(),
+          elseBranch: String(step?.elseBranch || "").trim(),
+        }))
+        .filter((step) => (step.type === "action" && step.label) || (step.type === "decision" && step.condition))
+    : [];
+
   const transitions = Array.isArray(activity.transitions)
     ? activity.transitions
         .map((transition) => ({
@@ -83,7 +154,12 @@ const normalizeActivity = (activity = {}) => {
         }))
         .filter((transition) => transition.from && transition.to)
     : [];
-  return { transitions };
+
+  return {
+    workflowTitle: String(activity.workflowTitle || "Core Business Process").trim(),
+    steps,
+    transitions,
+  };
 };
 
 const normalizeUmlPreparation = (payload) => {
@@ -111,20 +187,42 @@ const extractJsonPayload = (content) => {
   return candidate;
 };
 
-const parseUmlPreparationResponse = (content) => {
-  let parsed;
-  try {
-    parsed = JSON.parse(extractJsonPayload(content));
-  } catch (error) {
-    console.error("[uml] Invalid AI JSON response:", String(content || "").slice(0, 1000));
-    throw new Error("AI returned invalid UML preparation JSON. Please try again.");
+const mergeUmlPreparation = (base, partial, diagramType = "all") => {
+  const current = normalizeUmlPreparation(base);
+  const typeKey = String(diagramType || "all").toLowerCase();
+
+  if (typeKey === "class") {
+    const classes = normalizeClasses(partial.classes || []);
+    const relationships = normalizeRelationships(partial.relationships || [], classes.map((c) => c.name));
+    return {
+      ...current,
+      classes: classes.length ? classes : current.classes,
+      relationships: relationships.length ? relationships : current.relationships,
+    };
   }
 
-  const umlPreparation = normalizeUmlPreparation(parsed);
-  if (umlPreparation.classes.length === 0) {
-    throw new Error("AI did not return any valid UML classes. Please try again.");
+  if (typeKey === "usecase") {
+    return {
+      ...current,
+      useCase: normalizeUseCase(partial.useCase || partial),
+    };
   }
-  return umlPreparation;
+
+  if (typeKey === "sequence") {
+    return {
+      ...current,
+      sequence: normalizeSequence(partial.sequence || partial),
+    };
+  }
+
+  if (typeKey === "activity") {
+    return {
+      ...current,
+      activity: normalizeActivity(partial.activity || partial),
+    };
+  }
+
+  return normalizeUmlPreparation(partial);
 };
 
 const getProjectForUser = async (userId, projectId = null) => {
@@ -134,21 +232,34 @@ const getProjectForUser = async (userId, projectId = null) => {
   return project;
 };
 
-const generateUmlPreparation = async (project) => {
-  const prompt = buildUmlPreparationGenerationPrompt(project);
+const generateUmlPreparation = async (project, diagramType = "all", currentPreparation = null) => {
+  const prompt = buildUmlPreparationGenerationPrompt(project, diagramType);
   const response = await callOpenRouter(prompt);
-  return parseUmlPreparationResponse(response);
-};
-
-const refineUmlPreparation = async (project, currentUmlPreparation, instructions = "") => {
-  const umlPreparation = normalizeUmlPreparation(currentUmlPreparation);
-  if (umlPreparation.classes.length === 0) {
-    throw new Error("Current UML preparation is required to refine.");
+  let parsed;
+  try {
+    parsed = JSON.parse(extractJsonPayload(response));
+  } catch (error) {
+    console.error("[uml] Invalid AI JSON response:", String(response || "").slice(0, 1000));
+    throw new Error("AI returned invalid UML preparation JSON. Please try again.");
   }
 
-  const prompt = buildUmlPreparationRefinementPrompt(project, umlPreparation, instructions);
+  const base = currentPreparation || project.umlPreparation || {};
+  return mergeUmlPreparation(base, parsed.umlPreparation || parsed, diagramType);
+};
+
+const refineUmlPreparation = async (project, currentUmlPreparation, instructions = "", diagramType = "all") => {
+  const umlPreparation = normalizeUmlPreparation(currentUmlPreparation);
+  const prompt = buildUmlPreparationRefinementPrompt(project, umlPreparation, instructions, diagramType);
   const response = await callOpenRouter(prompt);
-  return parseUmlPreparationResponse(response);
+  let parsed;
+  try {
+    parsed = JSON.parse(extractJsonPayload(response));
+  } catch (error) {
+    console.error("[uml] Invalid AI JSON response:", String(response || "").slice(0, 1000));
+    throw new Error("AI returned invalid UML preparation JSON. Please try again.");
+  }
+
+  return mergeUmlPreparation(umlPreparation, parsed.umlPreparation || parsed, diagramType);
 };
 
 const translateUmlPreparation = async (project, currentUmlPreparation) => {

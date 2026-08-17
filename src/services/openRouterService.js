@@ -14,25 +14,25 @@ const buildProjectContext = (project) => {
     Array.isArray(arr) ? arr.filter((v) => v && v.trim() !== "") : [];
 
   return {
-    projectTitle:        project.basics?.title || "",
-    projectType:         project.basics?.type || "",
-    domain:              project.basics?.domain || "",
-    outputLanguage:      project.basics?.language || "English",
-    university:          project.basics?.university || "",
-    academicYear:        project.basics?.academicYear || "",
-    problemStatement:    project.description?.problemStatement || "",
-    objective:           project.description?.objective || "",
+    projectTitle: project.basics?.title || "",
+    projectType: project.basics?.type || "",
+    domain: project.basics?.domain || "",
+    outputLanguage: project.basics?.language || "English",
+    university: project.basics?.university || "",
+    academicYear: project.basics?.academicYear || "",
+    problemStatement: project.description?.problemStatement || "",
+    objective: project.description?.objective || "",
     detailedDescription: project.description?.detailedDescription || "",
-    deliverables:        filterEmpty(project.description?.deliverables).join(", "),
-    company:             project.description?.company || null,
-    industry:            project.description?.industry || "",
-    stakeholders:        filterEmpty(project.description?.stakeholders).join(", "),
-    developmentTypes:    filterEmpty(project.technicalContext?.developmentTypes).join(", "),
-    technologies:        filterEmpty(project.technicalContext?.technologies).join(", "),
-    methodology:         project.technicalContext?.methodology || "",
-    targetUsers:         filterEmpty(project.technicalContext?.targetUsers).join(", "),
-    teamSize:            project.technicalContext?.teamSize || "",
-    duration:            project.technicalContext?.duration || "",
+    deliverables: filterEmpty(project.description?.deliverables).join(", "),
+    company: project.description?.company || null,
+    industry: project.description?.industry || "",
+    stakeholders: filterEmpty(project.description?.stakeholders).join(", "),
+    developmentTypes: filterEmpty(project.technicalContext?.developmentTypes).join(", "),
+    technologies: filterEmpty(project.technicalContext?.technologies).join(", "),
+    methodology: project.technicalContext?.methodology || "",
+    targetUsers: filterEmpty(project.technicalContext?.targetUsers).join(", "),
+    teamSize: project.technicalContext?.teamSize || "",
+    duration: project.technicalContext?.duration || "",
   };
 };
 
@@ -42,19 +42,19 @@ const formatContextString = (ctx) =>
     `- Project type: ${ctx.projectType}`,
     `- Domain: ${ctx.domain}`,
     `- University: ${ctx.university} | Academic Year: ${ctx.academicYear}`,
-    ctx.industry     ? `- Industry: ${ctx.industry}` : null,
-    ctx.company      ? `- Company partner: ${ctx.company}` : null,
+    ctx.industry ? `- Industry: ${ctx.industry}` : null,
+    ctx.company ? `- Company partner: ${ctx.company}` : null,
     ctx.problemStatement ? `- Problem statement: ${ctx.problemStatement}` : null,
-    ctx.objective    ? `- Objective: ${ctx.objective}` : null,
+    ctx.objective ? `- Objective: ${ctx.objective}` : null,
     ctx.detailedDescription ? `- Detailed description: ${ctx.detailedDescription}` : null,
     ctx.deliverables ? `- Deliverables: ${ctx.deliverables}` : null,
     ctx.stakeholders ? `- Stakeholders: ${ctx.stakeholders}` : null,
-    ctx.targetUsers  ? `- Target users: ${ctx.targetUsers}` : null,
+    ctx.targetUsers ? `- Target users: ${ctx.targetUsers}` : null,
     ctx.developmentTypes ? `- Solution type: ${ctx.developmentTypes}` : null,
     ctx.technologies ? `- Technologies: ${ctx.technologies}` : null,
-    ctx.methodology  ? `- Methodology: ${ctx.methodology}` : null,
-    ctx.teamSize     ? `- Team size: ${ctx.teamSize} person(s)` : null,
-    ctx.duration     ? `- Duration: ${ctx.duration} months` : null,
+    ctx.methodology ? `- Methodology: ${ctx.methodology}` : null,
+    ctx.teamSize ? `- Team size: ${ctx.teamSize} person(s)` : null,
+    ctx.duration ? `- Duration: ${ctx.duration} months` : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -215,11 +215,11 @@ const callAI = async (type, project, currentText = null, options = {}) => {
   const instructions = typeof options.instructions === "string" ? options.instructions.trim() : "";
   const userPrompt = currentText
     ? [
-        instructions
-          ? `STUDENT INSTRUCTIONS (highest priority, while still respecting the rules above):\n${instructions}`
-          : null,
-        `CURRENT TEXT:\n${currentText}`,
-      ].filter(Boolean).join("\n\n")
+      instructions
+        ? `STUDENT INSTRUCTIONS (highest priority, while still respecting the rules above):\n${instructions}`
+        : null,
+      `CURRENT TEXT:\n${currentText}`,
+    ].filter(Boolean).join("\n\n")
     : null;
   return callOpenRouter(systemPrompt, userPrompt);
 };

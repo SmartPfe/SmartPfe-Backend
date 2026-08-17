@@ -115,6 +115,9 @@ const umlRelationshipSchema = new mongoose.Schema(
 
 const umlUseCaseSchema = new mongoose.Schema(
   {
+    systemName: { type: String, default: "System", trim: true },
+    primaryActors: { type: [String], default: [] },
+    secondaryActors: { type: [String], default: [] },
     actors: { type: [String], default: [] },
     useCases: { type: [String], default: [] },
     links: {
@@ -126,20 +129,16 @@ const umlUseCaseSchema = new mongoose.Schema(
       ],
       default: [],
     },
-  },
-  { _id: false }
-);
-
-const umlSequenceSchema = new mongoose.Schema(
-  {
-    participants: { type: [String], default: [] },
-    messages: {
+    useCaseRelations: {
       type: [
         {
           source: { type: String, trim: true },
           target: { type: String, trim: true },
-          message: { type: String, trim: true },
-          response: { type: Boolean, default: false },
+          type: {
+            type: String,
+            enum: ["include", "extend"],
+            default: "include",
+          },
         },
       ],
       default: [],
@@ -148,8 +147,59 @@ const umlSequenceSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const umlSequenceSchema = new mongoose.Schema(
+  {
+    scenario: { type: String, default: "", trim: true },
+    participants: { type: mongoose.Schema.Types.Mixed, default: [] },
+    messages: {
+      type: [
+        {
+          source: { type: String, trim: true },
+          target: { type: String, trim: true },
+          message: { type: String, trim: true },
+          response: { type: Boolean, default: false },
+          type: { type: String, default: "sync" },
+        },
+      ],
+      default: [],
+    },
+    altFlow: {
+      condition: { type: String, default: "", trim: true },
+      messages: {
+        type: [
+          {
+            source: { type: String, trim: true },
+            target: { type: String, trim: true },
+            message: { type: String, trim: true },
+            response: { type: Boolean, default: false },
+          },
+        ],
+        default: [],
+      },
+    },
+  },
+  { _id: false }
+);
+
 const umlActivitySchema = new mongoose.Schema(
   {
+    workflowTitle: { type: String, default: "", trim: true },
+    steps: {
+      type: [
+        {
+          type: {
+            type: String,
+            enum: ["action", "decision"],
+            default: "action",
+          },
+          label: { type: String, default: "", trim: true },
+          condition: { type: String, default: "", trim: true },
+          thenBranch: { type: String, default: "", trim: true },
+          elseBranch: { type: String, default: "", trim: true },
+        },
+      ],
+      default: [],
+    },
     transitions: {
       type: [
         {

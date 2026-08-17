@@ -602,7 +602,8 @@ const generateUmlPreparation = async (req, res) => {
       return res.status(404).json({ message: "Project not found for this user." });
     }
 
-    const umlPreparation = await generateUmlPreparationService(project);
+    const { diagramType, currentUmlPreparation } = req.body || {};
+    const umlPreparation = await generateUmlPreparationService(project, diagramType, currentUmlPreparation);
     res.status(200).json({ umlPreparation });
   } catch (error) {
     console.error("[ai] generate UML preparation error:", error.message);
@@ -615,8 +616,8 @@ const generateUmlPreparation = async (req, res) => {
 // @access  Private
 const refineUmlPreparation = async (req, res) => {
   try {
-    const { umlPreparation, instructions } = req.body;
-    if (!umlPreparation || !Array.isArray(umlPreparation.classes) || umlPreparation.classes.length === 0) {
+    const { umlPreparation, instructions, diagramType } = req.body;
+    if (!umlPreparation) {
       return res.status(400).json({ message: "Current UML preparation is required to refine." });
     }
 
@@ -625,7 +626,7 @@ const refineUmlPreparation = async (req, res) => {
       return res.status(404).json({ message: "Project not found for this user." });
     }
 
-    const refinedPreparation = await refineUmlPreparationService(project, umlPreparation, instructions);
+    const refinedPreparation = await refineUmlPreparationService(project, umlPreparation, instructions, diagramType);
     res.status(200).json({ umlPreparation: refinedPreparation });
   } catch (error) {
     console.error("[ai] refine UML preparation error:", error.message);

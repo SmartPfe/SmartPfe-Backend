@@ -1,0 +1,558 @@
+{
+  "total_test_cases": 18,
+  "benchmark_timestamp": "2026-08-17T23:35:00Z",
+  "pipeline": "Current Production RAG (reportStructureRagService.js)",
+  "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "retrieval_strategy": "Atlas Vector Search on pfe_chunks with Fallback to pfe_structures Token Ranking",
+  "overall_metrics": {
+    "mean_context_relevance": 0.355,
+    "mean_context_recall": 0.825,
+    "mean_faithfulness": 0.994,
+    "mean_structure_quality": 0.872,
+    "mean_composite_rag_score": 0.71,
+    "mean_retrieval_latency_ms": 18833.0,
+    "mean_generation_latency_ms": 130586.0
+  },
+  "results": [
+    {
+      "id": "case-01",
+      "title": "IoT Smart Agriculture Soil & Crop Monitoring",
+      "domain": "IoT & Smart Agriculture",
+      "language": "English",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3325,
+      "retrieval_time_ms": 38199,
+      "generation_time_ms": 167581,
+      "top_level_chapters": 9,
+      "total_sections": 139,
+      "metrics": {
+        "context_relevance": 0.314,
+        "context_recall": 0.857,
+        "faithfulness": 1.0,
+        "structure_quality": 0.79,
+        "composite_rag_score": 0.693
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: RAPPORT PFE Edited (3) (1).pdf\nLanguage: en\nStructure relevance score: 209.5\nTable of contents:\n- Introduction\n- 1 Host Organization\n  - 1.1 Bee Coders\n  - 1.2 Services\n- 2 Project Presentation :\n  - 2.1 Problem Statement\n- 3 Existing Solutions\n  - 3.1 Criticism of the existing\n- 4 Envisaged Solution and Overall Objectives:\n  - 4.1 Envisaged Solution :\n  - 4.2 Overall Objectives:\n- 5 Project Management Methodology\n  - 5.1 Methodological Choice\n  - 5.2 Why Scrum\n  - Roles in Scrum :\n- 6 Unified Modeling Language (UML)...",
+      "generated_chapters_preview": [
+        "Introduction",
+        "Project Motivation and Context",
+        "Problem Statement",
+        "Objectives and Expected Deliverables",
+        "Report Structure",
+        "Organizational and Project Context",
+        "Host Organization: AgriTech Solutions",
+        "Company Overview and Business Domains"
+      ]
+    },
+    {
+      "id": "case-02",
+      "title": "Plateforme de Télémédecine et Dossier Médical Électronique (DME)",
+      "domain": "Santé & Télémédecine",
+      "language": "French",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3127,
+      "retrieval_time_ms": 24245,
+      "generation_time_ms": 179582,
+      "top_level_chapters": 8,
+      "total_sections": 134,
+      "metrics": {
+        "context_relevance": 0.382,
+        "context_recall": 0.714,
+        "faithfulness": 1.0,
+        "structure_quality": 1.0,
+        "composite_rag_score": 0.712
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: RAPPORT PFE Edited (3) (1).pdf\nLanguage: en\nStructure relevance score: 199.5\nTable of contents:\n- Introduction\n- 1 Host Organization\n  - 1.1 Bee Coders\n  - 1.2 Services\n- 2 Project Presentation :\n  - 2.1 Problem Statement\n- 3 Existing Solutions\n  - 3.1 Criticism of the existing\n- 4 Envisaged Solution and Overall Objectives:\n  - 4.1 Envisaged Solution :\n  - 4.2 Overall Objectives:\n- 5 Project Management Methodology\n  - 5.1 Methodological Choice\n  - 5.2 Why Scrum\n  - Roles in Scrum :\n- 6 Unified Modeling Language (UML)...",
+      "generated_chapters_preview": [
+        "Introduction Générale",
+        "Contexte et Motivation",
+        "Problématique",
+        "Objectifs du Projet",
+        "Périmètre et Livrables",
+        "Structure du Rapport",
+        "Contexte Organisationnel et Cadrage du Projet",
+        "Structure d'Accueil : Clinique Santé Plus"
+      ]
+    },
+    {
+      "id": "case-03",
+      "title": "Fintech Real-time Payment & Fraud Detection Engine",
+      "domain": "Fintech & Cybersecurity",
+      "language": "English",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3325,
+      "retrieval_time_ms": 20372,
+      "generation_time_ms": 63956,
+      "top_level_chapters": 9,
+      "total_sections": 58,
+      "metrics": {
+        "context_relevance": 0.307,
+        "context_recall": 0.857,
+        "faithfulness": 1.0,
+        "structure_quality": 0.79,
+        "composite_rag_score": 0.69
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: RAPPORT PFE Edited (3) (1).pdf\nLanguage: en\nStructure relevance score: 239.5\nTable of contents:\n- Introduction\n- 1 Host Organization\n  - 1.1 Bee Coders\n  - 1.2 Services\n- 2 Project Presentation :\n  - 2.1 Problem Statement\n- 3 Existing Solutions\n  - 3.1 Criticism of the existing\n- 4 Envisaged Solution and Overall Objectives:\n  - 4.1 Envisaged Solution :\n  - 4.2 Overall Objectives:\n- 5 Project Management Methodology\n  - 5.1 Methodological Choice\n  - 5.2 Why Scrum\n  - Roles in Scrum :\n- 6 Unified Modeling Language (UML)...",
+      "generated_chapters_preview": [
+        "Introduction",
+        "Project Context",
+        "Problem Statement",
+        "Objectives and Scope",
+        "Deliverables",
+        "Methodology Overview",
+        "Report Structure",
+        "Organizational Context"
+      ]
+    },
+    {
+      "id": "case-04",
+      "title": "Architecture Microservices E-Commerce & Gestion d'Inventaire Temps Réel",
+      "domain": "E-Commerce & Cloud Microservices",
+      "language": "French",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3142,
+      "retrieval_time_ms": 26898,
+      "generation_time_ms": 131309,
+      "top_level_chapters": 9,
+      "total_sections": 110,
+      "metrics": {
+        "context_relevance": 0.401,
+        "context_recall": 0.857,
+        "faithfulness": 1.0,
+        "structure_quality": 0.79,
+        "composite_rag_score": 0.723
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: RAPPORT PFE Edited (3) (1).pdf\nLanguage: en\nStructure relevance score: 209.5\nTable of contents:\n- Introduction\n- 1 Host Organization\n  - 1.1 Bee Coders\n  - 1.2 Services\n- 2 Project Presentation :\n  - 2.1 Problem Statement\n- 3 Existing Solutions\n  - 3.1 Criticism of the existing\n- 4 Envisaged Solution and Overall Objectives:\n  - 4.1 Envisaged Solution :\n  - 4.2 Overall Objectives:\n- 5 Project Management Methodology\n  - 5.1 Methodological Choice\n  - 5.2 Why Scrum\n  - Roles in Scrum :\n- 6 Unified Modeling Language (UML)...",
+      "generated_chapters_preview": [
+        "Introduction Générale",
+        "Contexte et Motivations du Projet",
+        "Problématique : Limites des Architectures Monolithiques E-Commerce",
+        "Objectifs de la Solution OmniShop",
+        "Périmètre et Livrables Attendus",
+        "Structure du Rapport",
+        "Cadre Organisationnel et Projet",
+        "Présentation de l'Entreprise d'Accueil : Retail Innovations"
+      ]
+    },
+    {
+      "id": "case-05",
+      "title": "AI-Powered Customer Support Assistant & Sentiment Analytics",
+      "domain": "AI & Natural Language Processing",
+      "language": "English",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3325,
+      "retrieval_time_ms": 19789,
+      "generation_time_ms": 133766,
+      "top_level_chapters": 9,
+      "total_sections": 147,
+      "metrics": {
+        "context_relevance": 0.374,
+        "context_recall": 0.857,
+        "faithfulness": 1.0,
+        "structure_quality": 0.79,
+        "composite_rag_score": 0.714
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: rapport_pfe_Manar_Wahada.pdf\nLanguage: en\nStructure relevance score: 221.0\nTable of contents:\n- General Context\n  - Introduction\n  - Presentation of the Host Organization\n    - Business Sectors\n  - Project Problematic\n  - Analysis of Existing Solutions\n  - Proposed Solution\n  - Work Methodology\n    - Agile Methods\n    - Selected Project Approach:Srum\n    - Key Roles in the SCRUM Methodology\n  - Implementation of SCRUM Methodology in Business Intelligence Project\n    - The TOP-DOWN Approach (Bill Inmon)\n    - The BOTT...",
+      "generated_chapters_preview": [
+        "General Introduction",
+        "Project Context and Motivation",
+        "Problem Statement",
+        "Objectives and Expected Contributions",
+        "Scope and Deliverables",
+        "Report Organization",
+        "Organizational and Project Framework",
+        "Host Organization: CustomerFirst AI"
+      ]
+    },
+    {
+      "id": "case-06",
+      "title": "Plateforme SIEM et Détection d'Intrusions Cyberdéfense",
+      "domain": "Cybersécurité & SIEM",
+      "language": "French",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3142,
+      "retrieval_time_ms": 16561,
+      "generation_time_ms": 157541,
+      "top_level_chapters": 8,
+      "total_sections": 132,
+      "metrics": {
+        "context_relevance": 0.361,
+        "context_recall": 0.857,
+        "faithfulness": 1.0,
+        "structure_quality": 1.0,
+        "composite_rag_score": 0.741
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: RAPPORT PFE Edited (3) (1).pdf\nLanguage: en\nStructure relevance score: 189.5\nTable of contents:\n- Introduction\n- 1 Host Organization\n  - 1.1 Bee Coders\n  - 1.2 Services\n- 2 Project Presentation :\n  - 2.1 Problem Statement\n- 3 Existing Solutions\n  - 3.1 Criticism of the existing\n- 4 Envisaged Solution and Overall Objectives:\n  - 4.1 Envisaged Solution :\n  - 4.2 Overall Objectives:\n- 5 Project Management Methodology\n  - 5.1 Methodological Choice\n  - 5.2 Why Scrum\n  - Roles in Scrum :\n- 6 Unified Modeling Language (UML)...",
+      "generated_chapters_preview": [
+        "Introduction",
+        "Contexte et Motivation",
+        "Problématique des PME en Cybersécurité",
+        "Objectifs du Projet CyberShield",
+        "Périmètre et Livrables",
+        "Structure du Rapport",
+        "Contexte Organisationnel et Étude de l'EXISTANT",
+        "Présentation de l'Organisme d'Accueil SecurGroup"
+      ]
+    },
+    {
+      "id": "case-07",
+      "title": "Système de Gestion de Flotte et Suivi GPS en Temps Réel",
+      "domain": "IoT, Logistique & Mobilité",
+      "language": "French",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3142,
+      "retrieval_time_ms": 16297,
+      "generation_time_ms": 138279,
+      "top_level_chapters": 8,
+      "total_sections": 109,
+      "metrics": {
+        "context_relevance": 0.38,
+        "context_recall": 0.857,
+        "faithfulness": 1.0,
+        "structure_quality": 1.0,
+        "composite_rag_score": 0.747
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: RAPPORT PFE Edited (3) (1).pdf\nLanguage: en\nStructure relevance score: 179.5\nTable of contents:\n- Introduction\n- 1 Host Organization\n  - 1.1 Bee Coders\n  - 1.2 Services\n- 2 Project Presentation :\n  - 2.1 Problem Statement\n- 3 Existing Solutions\n  - 3.1 Criticism of the existing\n- 4 Envisaged Solution and Overall Objectives:\n  - 4.1 Envisaged Solution :\n  - 4.2 Overall Objectives:\n- 5 Project Management Methodology\n  - 5.1 Methodological Choice\n  - 5.2 Why Scrum\n  - Roles in Scrum :\n- 6 Unified Modeling Language (UML)...",
+      "generated_chapters_preview": [
+        "Introduction Générale",
+        "Contexte et Motivation",
+        "Problématique de la Gestion de Flotte",
+        "Objectifs du Projet FleetTrack",
+        "Périmètre et Livrables",
+        "Organisation du Rapport",
+        "Contexte Organisationnel et Projet",
+        "Présentation de l'Entreprise d'Accueil TransLogistics"
+      ]
+    },
+    {
+      "id": "case-08",
+      "title": "EdTech Adaptive Learning & Online Examination Proctoring Platform",
+      "domain": "EdTech & Computer Vision",
+      "language": "English",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3304,
+      "retrieval_time_ms": 15588,
+      "generation_time_ms": 146235,
+      "top_level_chapters": 9,
+      "total_sections": 125,
+      "metrics": {
+        "context_relevance": 0.422,
+        "context_recall": 0.857,
+        "faithfulness": 1.0,
+        "structure_quality": 0.79,
+        "composite_rag_score": 0.731
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: RAPPORT PFE Edited (3) (1).pdf\nLanguage: en\nStructure relevance score: 199.5\nTable of contents:\n- Introduction\n- 1 Host Organization\n  - 1.1 Bee Coders\n  - 1.2 Services\n- 2 Project Presentation :\n  - 2.1 Problem Statement\n- 3 Existing Solutions\n  - 3.1 Criticism of the existing\n- 4 Envisaged Solution and Overall Objectives:\n  - 4.1 Envisaged Solution :\n  - 4.2 Overall Objectives:\n- 5 Project Management Methodology\n  - 5.1 Methodological Choice\n  - 5.2 Why Scrum\n  - Roles in Scrum :\n- 6 Unified Modeling Language (UML)...",
+      "generated_chapters_preview": [
+        "Introduction",
+        "Project Context and Motivation",
+        "Problem Statement",
+        "Objectives and Expected Deliverables",
+        "Report Structure",
+        "Organizational and Project Context",
+        "Host Organization: EduTech Global",
+        "Company Overview and Business Sectors"
+      ]
+    },
+    {
+      "id": "case-09",
+      "title": "Traçabilité Supply Chain Agroalimentaire basée sur Blockchain & Smart Contracts",
+      "domain": "Blockchain & Supply Chain",
+      "language": "French",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3503,
+      "retrieval_time_ms": 19161,
+      "generation_time_ms": 44276,
+      "top_level_chapters": 9,
+      "total_sections": 59,
+      "metrics": {
+        "context_relevance": 0.364,
+        "context_recall": 0.714,
+        "faithfulness": 1.0,
+        "structure_quality": 0.79,
+        "composite_rag_score": 0.675
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: RAPPORT PFE Edited (3) (1).pdf\nLanguage: en\nStructure relevance score: 189.5\nTable of contents:\n- Introduction\n- 1 Host Organization\n  - 1.1 Bee Coders\n  - 1.2 Services\n- 2 Project Presentation :\n  - 2.1 Problem Statement\n- 3 Existing Solutions\n  - 3.1 Criticism of the existing\n- 4 Envisaged Solution and Overall Objectives:\n  - 4.1 Envisaged Solution :\n  - 4.2 Overall Objectives:\n- 5 Project Management Methodology\n  - 5.1 Methodological Choice\n  - 5.2 Why Scrum\n  - Roles in Scrum :\n- 6 Unified Modeling Language (UML)...",
+      "generated_chapters_preview": [
+        "Introduction Générale",
+        "Contexte et Motivation du Projet",
+        "Problématique de la Traçabilité Agroalimentaire",
+        "Objectifs de la Solution AgriChain",
+        "Périmètre et Livrables du PFE",
+        "Structure du Rapport",
+        "Cadre Organisationnel et Projet",
+        "Présentation de l'Organisme d'Accueil BioCertif Chain"
+      ]
+    },
+    {
+      "id": "case-10",
+      "title": "Application Mobile Bancaire avec Authentification Biométrique & Gestion Budgétaire",
+      "domain": "Banque Mobile & Sécurité",
+      "language": "French",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3325,
+      "retrieval_time_ms": 17107,
+      "generation_time_ms": 71499,
+      "top_level_chapters": 8,
+      "total_sections": 43,
+      "metrics": {
+        "context_relevance": 0.349,
+        "context_recall": 0.857,
+        "faithfulness": 0.962,
+        "structure_quality": 1.0,
+        "composite_rag_score": 0.727
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: RAPPORT PFE Edited (3) (1).pdf\nLanguage: en\nStructure relevance score: 179.5\nTable of contents:\n- Introduction\n- 1 Host Organization\n  - 1.1 Bee Coders\n  - 1.2 Services\n- 2 Project Presentation :\n  - 2.1 Problem Statement\n- 3 Existing Solutions\n  - 3.1 Criticism of the existing\n- 4 Envisaged Solution and Overall Objectives:\n  - 4.1 Envisaged Solution :\n  - 4.2 Overall Objectives:\n- 5 Project Management Methodology\n  - 5.1 Methodological Choice\n  - 5.2 Why Scrum\n  - Roles in Scrum :\n- 6 Unified Modeling Language (UML)...",
+      "generated_chapters_preview": [
+        "Introduction",
+        "Contexte général du projet",
+        "Problématique et motivation",
+        "Objectifs et périmètre du PFE",
+        "Structure du rapport",
+        "Contexte Organisationnel et Projet",
+        "Présentation de l'entreprise d'accueil NeoBank Digital",
+        "Analyse des solutions existantes (Revolut, néobanques classiques)"
+      ]
+    },
+    {
+      "id": "case-11",
+      "title": "Cloud-Native Multi-Cluster Kubernetes Observability & GitOps Pipeline",
+      "domain": "DevOps & Cloud Infrastructure",
+      "language": "English",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3214,
+      "retrieval_time_ms": 17284,
+      "generation_time_ms": 150480,
+      "top_level_chapters": 8,
+      "total_sections": 109,
+      "metrics": {
+        "context_relevance": 0.38,
+        "context_recall": 0.714,
+        "faithfulness": 1.0,
+        "structure_quality": 1.0,
+        "composite_rag_score": 0.712
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: RAPPORT PFE Edited (3) (1).pdf\nLanguage: en\nStructure relevance score: 219.5\nTable of contents:\n- Introduction\n- 1 Host Organization\n  - 1.1 Bee Coders\n  - 1.2 Services\n- 2 Project Presentation :\n  - 2.1 Problem Statement\n- 3 Existing Solutions\n  - 3.1 Criticism of the existing\n- 4 Envisaged Solution and Overall Objectives:\n  - 4.1 Envisaged Solution :\n  - 4.2 Overall Objectives:\n- 5 Project Management Methodology\n  - 5.1 Methodological Choice\n  - 5.2 Why Scrum\n  - Roles in Scrum :\n- 6 Unified Modeling Language (UML)...",
+      "generated_chapters_preview": [
+        "Introduction",
+        "Project Background and Motivation",
+        "Problem Statement",
+        "Objectives and Deliverables",
+        "Report Structure",
+        "Project Context and Organization",
+        "Host Organization: CloudScale Systems",
+        "Company Overview"
+      ]
+    },
+    {
+      "id": "case-12",
+      "title": "Plateforme Immobilière avec Visites Virtuelles 3D et Estimation par IA",
+      "domain": "Immobilier & Vision 3D / IA",
+      "language": "French",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3325,
+      "retrieval_time_ms": 15757,
+      "generation_time_ms": 123719,
+      "top_level_chapters": 8,
+      "total_sections": 118,
+      "metrics": {
+        "context_relevance": 0.363,
+        "context_recall": 0.857,
+        "faithfulness": 1.0,
+        "structure_quality": 1.0,
+        "composite_rag_score": 0.741
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: RAPPORT PFE Edited (3) (1).pdf\nLanguage: en\nStructure relevance score: 189.5\nTable of contents:\n- Introduction\n- 1 Host Organization\n  - 1.1 Bee Coders\n  - 1.2 Services\n- 2 Project Presentation :\n  - 2.1 Problem Statement\n- 3 Existing Solutions\n  - 3.1 Criticism of the existing\n- 4 Envisaged Solution and Overall Objectives:\n  - 4.1 Envisaged Solution :\n  - 4.2 Overall Objectives:\n- 5 Project Management Methodology\n  - 5.1 Methodological Choice\n  - 5.2 Why Scrum\n  - Roles in Scrum :\n- 6 Unified Modeling Language (UML)...",
+      "generated_chapters_preview": [
+        "Introduction Générale",
+        "Contexte et Motivations du Projet",
+        "Problématique et Objectifs",
+        "Périmètre et Livrables",
+        "Organisation du Rapport",
+        "Contexte Organisationnel et Présentation du Projet",
+        "Structure d'Accueil : ImmoNext",
+        "Présentation de l'Entreprise et Secteur d'Activité"
+      ]
+    },
+    {
+      "id": "case-13",
+      "title": "AR/VR Industrial Equipment Maintenance & Training Simulator",
+      "domain": "AR/VR & Industrial IoT",
+      "language": "English",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3142,
+      "retrieval_time_ms": 14825,
+      "generation_time_ms": 84493,
+      "top_level_chapters": 9,
+      "total_sections": 100,
+      "metrics": {
+        "context_relevance": 0.292,
+        "context_recall": 0.857,
+        "faithfulness": 0.962,
+        "structure_quality": 0.79,
+        "composite_rag_score": 0.675
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: RAPPORT PFE Edited (3) (1).pdf\nLanguage: en\nStructure relevance score: 239.5\nTable of contents:\n- Introduction\n- 1 Host Organization\n  - 1.1 Bee Coders\n  - 1.2 Services\n- 2 Project Presentation :\n  - 2.1 Problem Statement\n- 3 Existing Solutions\n  - 3.1 Criticism of the existing\n- 4 Envisaged Solution and Overall Objectives:\n  - 4.1 Envisaged Solution :\n  - 4.2 Overall Objectives:\n- 5 Project Management Methodology\n  - 5.1 Methodological Choice\n  - 5.2 Why Scrum\n  - Roles in Scrum :\n- 6 Unified Modeling Language (UML)...",
+      "generated_chapters_preview": [
+        "Introduction",
+        "Project Context and Motivation",
+        "Problem Statement",
+        "Objectives and Expected Deliverables",
+        "Report Structure",
+        "Organizational and Project Context",
+        "Host Organization: IndustrialDynamics",
+        "Company Overview and Business Sectors"
+      ]
+    },
+    {
+      "id": "case-14",
+      "title": "Système de Recrutement Intelligent avec Parsing de CV et Matching NLP",
+      "domain": "Ressources Humaines & NLP",
+      "language": "French",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3127,
+      "retrieval_time_ms": 14634,
+      "generation_time_ms": 140171,
+      "top_level_chapters": 9,
+      "total_sections": 119,
+      "metrics": {
+        "context_relevance": 0.39,
+        "context_recall": 0.714,
+        "faithfulness": 0.962,
+        "structure_quality": 0.79,
+        "composite_rag_score": 0.674
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: RAPPORT PFE Edited (3) (1).pdf\nLanguage: en\nStructure relevance score: 189.5\nTable of contents:\n- Introduction\n- 1 Host Organization\n  - 1.1 Bee Coders\n  - 1.2 Services\n- 2 Project Presentation :\n  - 2.1 Problem Statement\n- 3 Existing Solutions\n  - 3.1 Criticism of the existing\n- 4 Envisaged Solution and Overall Objectives:\n  - 4.1 Envisaged Solution :\n  - 4.2 Overall Objectives:\n- 5 Project Management Methodology\n  - 5.1 Methodological Choice\n  - 5.2 Why Scrum\n  - Roles in Scrum :\n- 6 Unified Modeling Language (UML)...",
+      "generated_chapters_preview": [
+        "Introduction Générale",
+        "Contexte du Projet et Cadre Organisationnel",
+        "Présentation de l'Organisme d'Accueil",
+        "HumanTalent Solutions : Activités et Positionnement",
+        "Cadre du Stage et Encadrement",
+        "Présentation du Projet TalentMatch",
+        "Genèse et Objectifs du Projet",
+        "Périmètre Fonctionnel et Livrables"
+      ]
+    },
+    {
+      "id": "case-15",
+      "title": "Video Streaming Platform & Scalable Transcoding Pipeline",
+      "domain": "Multimedia & Cloud Video Streaming",
+      "language": "English",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3325,
+      "retrieval_time_ms": 14732,
+      "generation_time_ms": 206577,
+      "top_level_chapters": 9,
+      "total_sections": 114,
+      "metrics": {
+        "context_relevance": 0.331,
+        "context_recall": 0.857,
+        "faithfulness": 1.0,
+        "structure_quality": 0.79,
+        "composite_rag_score": 0.699
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: RAPPORT PFE Edited (3) (1).pdf\nLanguage: en\nStructure relevance score: 199.5\nTable of contents:\n- Introduction\n- 1 Host Organization\n  - 1.1 Bee Coders\n  - 1.2 Services\n- 2 Project Presentation :\n  - 2.1 Problem Statement\n- 3 Existing Solutions\n  - 3.1 Criticism of the existing\n- 4 Envisaged Solution and Overall Objectives:\n  - 4.1 Envisaged Solution :\n  - 4.2 Overall Objectives:\n- 5 Project Management Methodology\n  - 5.1 Methodological Choice\n  - 5.2 Why Scrum\n  - Roles in Scrum :\n- 6 Unified Modeling Language (UML)...",
+      "generated_chapters_preview": [
+        "Introduction",
+        "Project Context and Motivation",
+        "Problem Statement",
+        "Objectives and Expected Deliverables",
+        "Report Structure",
+        "Organizational and Project Context",
+        "Host Organization: MediaStream Lab",
+        "Company Overview and Business Domain"
+      ]
+    },
+    {
+      "id": "case-16",
+      "title": "Autonomous Warehouse Robotics Navigation & SLAM Fleet Coordinator",
+      "domain": "Robotics & Autonomous Systems",
+      "language": "English",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3325,
+      "retrieval_time_ms": 14913,
+      "generation_time_ms": 178358,
+      "top_level_chapters": 9,
+      "total_sections": 145,
+      "metrics": {
+        "context_relevance": 0.25,
+        "context_recall": 0.857,
+        "faithfulness": 1.0,
+        "structure_quality": 0.79,
+        "composite_rag_score": 0.67
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: AI-Powered Sentiment and Engagement Analysis for Social Media\nLanguage: en\nStructure relevance score: 209.5\nTable of contents:\n- General Introduction\n- Project Overview and Framework\n  - Introduction\n  - 2.1 BeeCoders Overview\n  - 2.2 9antra.tn / The Bridge\n  - 2.3 BeeCoders Contact Details\n  - 2.4 BeeCoders’ Core Missions\n  - 3.1 Project Context\n  - 3.2 Problem Statement\n  - 3.3 Software Environment\n  - 3.4 Proposed Solution\n  - 4.1 Agile methods\n  - 4.2 Choice of Methodology\n  - 4.3 Key Roles in the SCRUM Methodolo...",
+      "generated_chapters_preview": [
+        "General Introduction",
+        "Context and Motivation",
+        "Problem Statement",
+        "Objectives and Scope",
+        "Project Deliverables",
+        "Report Organization",
+        "Host Organization and Project Framework",
+        "RoboLogistics Inc. Presentation"
+      ]
+    },
+    {
+      "id": "case-17",
+      "title": "Gestion Intelligente des Déchets et Optimisation des Tournées de Collecte",
+      "domain": "Smart City & Optimisation Logistique",
+      "language": "French",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3142,
+      "retrieval_time_ms": 16456,
+      "generation_time_ms": 83653,
+      "top_level_chapters": 9,
+      "total_sections": 53,
+      "metrics": {
+        "context_relevance": 0.328,
+        "context_recall": 0.857,
+        "faithfulness": 1.0,
+        "structure_quality": 0.79,
+        "composite_rag_score": 0.698
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: RAPPORT PFE Edited (3) (1).pdf\nLanguage: en\nStructure relevance score: 189.5\nTable of contents:\n- Introduction\n- 1 Host Organization\n  - 1.1 Bee Coders\n  - 1.2 Services\n- 2 Project Presentation :\n  - 2.1 Problem Statement\n- 3 Existing Solutions\n  - 3.1 Criticism of the existing\n- 4 Envisaged Solution and Overall Objectives:\n  - 4.1 Envisaged Solution :\n  - 4.2 Overall Objectives:\n- 5 Project Management Methodology\n  - 5.1 Methodological Choice\n  - 5.2 Why Scrum\n  - Roles in Scrum :\n- 6 Unified Modeling Language (UML)...",
+      "generated_chapters_preview": [
+        "Introduction",
+        "Problématique et Motivations",
+        "Objectifs du Projet",
+        "Périmètre et Livrables",
+        "Structure du Rapport",
+        "Contexte Organisationnel et Projet",
+        "Présentation de l'Entreprise d'Accueil",
+        "Cadre du Projet CleanCity"
+      ]
+    },
+    {
+      "id": "case-18",
+      "title": "Plateforme de Recrutement et Suivi des Essais Cliniques",
+      "domain": "Santé, Recherche Clinique & Conformité",
+      "language": "French",
+      "retrieval_status": "Success (References Injected)",
+      "retrieval_chars": 3153,
+      "retrieval_time_ms": 16177,
+      "generation_time_ms": 149074,
+      "top_level_chapters": 8,
+      "total_sections": 97,
+      "metrics": {
+        "context_relevance": 0.401,
+        "context_recall": 0.857,
+        "faithfulness": 1.0,
+        "structure_quality": 1.0,
+        "composite_rag_score": 0.755
+      },
+      "retrieved_snippet": "Retrieved PFE report structures for internal academic guidance:\n\nReference 1: RAPPORT PFE Edited (3) (1).pdf\nLanguage: en\nStructure relevance score: 179.5\nTable of contents:\n- Introduction\n- 1 Host Organization\n  - 1.1 Bee Coders\n  - 1.2 Services\n- 2 Project Presentation :\n  - 2.1 Problem Statement\n- 3 Existing Solutions\n  - 3.1 Criticism of the existing\n- 4 Envisaged Solution and Overall Objectives:\n  - 4.1 Envisaged Solution :\n  - 4.2 Overall Objectives:\n- 5 Project Management Methodology\n  - 5.1 Methodological Choice\n  - 5.2 Why Scrum\n  - Roles in Scrum :\n- 6 Unified Modeling Language (UML)...",
+      "generated_chapters_preview": [
+        "Introduction Générale",
+        "Contexte et Motivation",
+        "Problématique du Recrutement Clinique",
+        "Objectifs du Projet TrialMatch",
+        "Périmètre et Livrables",
+        "Structure du Rapport",
+        "Cadre Organisationnel et Projet",
+        "Organisme d'Accueil : BioTrial Research"
+      ]
+    }
+  ]
+}

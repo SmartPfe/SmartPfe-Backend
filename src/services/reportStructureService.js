@@ -43,19 +43,40 @@ const extractJsonPayload = (content) => {
   return candidate;
 };
 
-const parseReportStructureResponse = (content) => {
-  let parsed;
-  try {
-    parsed = JSON.parse(extractJsonPayload(content));
-  } catch (error) {
-    console.error("[report-structure] Invalid AI JSON response:", String(content || "").slice(0, 1000));
-    throw new Error("AI returned invalid report structure JSON. Please try again.");
+/**
+ * Validates and sanitizes the generated report structure tree to ensure academic quality
+ */
+const validateReportStructureTree = (sections) => {
+  const normalized = normalizeSections(sections);
+  if (!Array.isArray(normalized) || normalized.length === 0) {
+    throw new Error("AI did not return any valid report sections.");
   }
 
-  const reportStructure = normalizeSections(Array.isArray(parsed) ? parsed : parsed.reportStructure);
-  if (reportStructure.length === 0) {
-    throw new Error("AI did not return a valid report structure. Please try again.");
+  // Ensure minimum academic breadth (at least 4 chapters)
+  if (normalized.length < 4) {
+    console.warn(`[report-structure][validator] Warning: Outline only has ${normalized.length} top-level chapters.`);
   }
+
+  return normalized;
+};
+
+const parseReportStructureResponse = (content) => {
+  let parsed;
+  const rawPayload = extractJsonPayload(content);
+  try {
+    parsed = JSON.parse(rawPayload);
+  } catch (error) {
+    // Attempt minor repair if LLM generated unescaped internal quotes in title strings
+    try {
+      const repaired = rawPayload.replace(/(:\s*"[^"]*)"([^",}\]]*)"/g, '$1\\"$2\\"');
+      parsed = JSON.parse(repaired);
+    } catch (repairErr) {
+      console.error("[report-structure] Invalid AI JSON response:", String(content || "").slice(0, 1000));
+      throw new Error("AI returned invalid report structure JSON. Please try again.");
+    }
+  }
+
+  const reportStructure = validateReportStructureTree(Array.isArray(parsed) ? parsed : parsed.reportStructure);
   return reportStructure;
 };
 

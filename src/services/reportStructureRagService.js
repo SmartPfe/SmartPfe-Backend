@@ -500,59 +500,188 @@ const getStructureFallbackContext = async (db, retrievalQuery, action = "generat
   return context;
 };
 
+const CANONICAL_ACADEMIC_CHAPTERS = [
+  { key: "intro", label: "Introduction / Problématique", patterns: [/intro/i, /problématique/i, /problem statement/i] },
+  { key: "sota", label: "Contexte Général / État de l'art / Solutions existantes", patterns: [/context/i, /contexte/i, /existant/i, /state of the art/i, /etat de l'art/i, /cadre/i] },
+  { key: "spec", label: "Méthodologie & Spécification des Besoins", patterns: [/besoin/i, /requirement/i, /spécification/i, /specification/i, /analyse/i, /méthodologie/i, /methodology/i, /scrum/i, /agile/i] },
+  { key: "design", label: "Conception Architecturale & Détaillée (UML)", patterns: [/conception/i, /design/i, /architecture/i, /uml/i, /diagram/i, /classe/i, /use case/i] },
+  { key: "impl", label: "Implémentation & Réalisation Technique", patterns: [/impl/i, /réalisation/i, /realization/i, /développement/i, /development/i, /technique/i] },
+  { key: "test", label: "Tests, Validation & Qualité", patterns: [/test/i, /validation/i, /évaluation/i, /evaluation/i, /sécurité/i, /security/i] },
+  { key: "persp", label: "Conclusion & Perspectives", patterns: [/conclusion/i, /perspective/i, /bilan/i] },
+];
+
+/**
+ * Evaluates the retrieved context against project needs and academic structural completeness.
+ */
+const evaluateRetrievedContext = (project, contextText = "", chunks = []) => {
+  const text = String(contextText || "").trim();
+  if (!text) {
+    return {
+      status: "REWRITE",
+      score: 0,
+      missingChapters: CANONICAL_ACADEMIC_CHAPTERS.map((c) => c.label),
+      reason: "No context was retrieved in the initial pass.",
+    };
+  }
+
+  // 1. Check academic chapter coverage (60% weight)
+  const coveredChapters = [];
+  const missingChapters = [];
+
+  CANONICAL_ACADEMIC_CHAPTERS.forEach((chapter) => {
+    const isCovered = chapter.patterns.some((pattern) => pattern.test(text));
+    if (isCovered) {
+      coveredChapters.push(chapter.label);
+    } else {
+      missingChapters.push(chapter.label);
+    }
+  });
+
+  const academicScore = coveredChapters.length / CANONICAL_ACADEMIC_CHAPTERS.length;
+
+  // 2. Check domain & technical keyword density (40% weight)
+  const ctx = getProjectContext(project);
+  const techTokens = [
+    ...getSearchTokens(ctx.technologies || ""),
+    ...getSearchTokens(ctx.developmentTypes || ""),
+    ...getSearchTokens(ctx.domain || ""),
+    ...getSearchTokens(project.umlPreparation?.classes?.map((c) => c.name).join(" ") || ""),
+  ];
+
+  const matchedTechTokens = techTokens.filter((token) => normalizeForSearch(text).includes(token));
+  const techScore = techTokens.length > 0 ? Math.min(1.0, (matchedTechTokens.length / Math.min(techTokens.length, 6))) : 0.6;
+
+  // Composite Grade
+  const compositeScore = Number(((academicScore * 0.6) + (techScore * 0.4)).toFixed(3));
+  const status = compositeScore >= 0.65 && missingChapters.length <= 2 ? "ACCEPT" : "REWRITE";
+
+  return {
+    status,
+    score: compositeScore,
+    academicScore: Number(academicScore.toFixed(3)),
+    techScore: Number(techScore.toFixed(3)),
+    coveredChapters,
+    missingChapters,
+    chunksCount: chunks.length,
+  };
+};
+
+/**
+ * Rewrites the search query to focus on architectural depth, methodology, and missing aspects.
+ */
+const rewriteRetrievalQuery = (project, evalResult) => {
+  const ctx = getProjectContext(project);
+  const missingKeywords = (evalResult?.missingChapters || []).join(", ");
+  
+  const techStack = cleanText(ctx.technologies || ctx.developmentTypes || "software engineering web mobile backend", 150);
+  const domain = cleanText(ctx.domain || ctx.projectType || "software engineering", 100);
+  const methodology = cleanText(ctx.methodology || "Scrum Agile", 40);
+  const umlClasses = (project.umlPreparation?.classes || []).slice(0, 6).map((c) => c.name).join(" ");
+
+  return [
+    "PFE master thesis table of contents software engineering architecture",
+    `Domain and System: ${domain} - ${techStack}`,
+    `Architecture and Design: Software architecture, UML class diagram, use cases ${umlClasses}`,
+    `Methodology and Lifecycle: ${methodology}, requirements specification, implementation, testing, validation`,
+    missingKeywords ? `Required academic chapters: ${missingKeywords}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .slice(0, 2500);
+};
+
+const executeRetrievalPass = async (db, project, queryText, action = "generate", passNumber = 1) => {
+  logStep(action, `Retrieval pass ${passNumber} started.`, `queryChars=${queryText.length}`);
+  const embedding = await generateQueryEmbedding(queryText, `${action}-pass${passNumber}`);
+  const chunksCollection = db.collection("pfe_chunks");
+  const { chunks, indexName } = await runVectorSearch(chunksCollection, embedding, `${action}-pass${passNumber}`);
+
+  if (!chunks.length) {
+    logStep(action, `Pass ${passNumber}: No chunks found via Vector Search. Using structure fallback.`);
+    const fallbackContext = await getStructureFallbackContext(db, queryText, `${action}-pass${passNumber}`);
+    return { context: fallbackContext, chunks: [], source: "fallback" };
+  }
+
+  const documentIds = [...new Set(chunks.map((chunk) => chunk.document_id).filter(Boolean))];
+  const [documents, structures] = await Promise.all([
+    db.collection("pfe_documents").find({ document_id: { $in: documentIds } }).toArray(),
+    db.collection("pfe_structures").find({ document_id: { $in: documentIds } }).toArray(),
+  ]);
+
+  const { context, topDocuments } = buildContextFromResults(chunks, documents, structures);
+  return { context, chunks, topDocuments, source: `vector (${indexName})` };
+};
+
+/**
+ * Self-Correcting RAG (CRAG) Pipeline with single retry and evaluation loop
+ */
 const getReportStructureRagContext = async (project, action = "generate") => {
   try {
     if (!mongoose.connection?.db) {
       throw new Error("MongoDB connection is not ready.");
     }
 
+    const db = mongoose.connection.db;
     const ctx = getProjectContext(project);
+
     logStep(
       action,
-      "Retrieval started.",
+      "[CRAG] Self-Correcting retrieval pipeline initialized.",
       `project="${cleanText(ctx.projectTitle || "Untitled", 80)}" domain="${cleanText(ctx.domain || "unknown", 60)}"`
     );
-    const retrievalQuery = buildRetrievalQuery(project);
-    logStep(action, "Semantic query built.", `chars=${retrievalQuery.length} preview="${cleanText(retrievalQuery, 420)}"`);
-    const embedding = await generateQueryEmbedding(retrievalQuery, action);
-    const db = mongoose.connection.db;
-    const chunksCollection = db.collection("pfe_chunks");
-    const { chunks, indexName } = await runVectorSearch(chunksCollection, embedding, action);
 
-    if (!chunks.length) {
-      logStep(action, "No relevant chunks found. Trying structure-first TOC fallback.");
-      return getStructureFallbackContext(db, retrievalQuery, action);
+    // --- PASS 1: Initial Retrieval ---
+    const initialQuery = buildRetrievalQuery(project);
+    const pass1 = await executeRetrievalPass(db, project, initialQuery, action, 1);
+
+    // --- CRAG EVALUATION STEP ---
+    const eval1 = evaluateRetrievedContext(project, pass1.context, pass1.chunks);
+    logStep(
+      action,
+      `[CRAG] Pass 1 Evaluation Grade: ${eval1.status}`,
+      `score=${eval1.score} academicScore=${eval1.academicScore} techScore=${eval1.techScore} missing=[${eval1.missingChapters.join("; ")}]`
+    );
+
+    let finalContext = pass1.context;
+
+    // --- PASS 2: Self-Correction via Query Rewriting (if needed) ---
+    if (eval1.status === "REWRITE") {
+      logStep(action, "[CRAG] Initial retrieval had gaps. Triggering Query Rewriter for 2nd pass...");
+      const rewrittenQuery = rewriteRetrievalQuery(project, eval1);
+      logStep(action, "[CRAG] Query Rewritten.", `newQueryPreview="${cleanText(rewrittenQuery, 250)}"`);
+
+      const pass2 = await executeRetrievalPass(db, project, rewrittenQuery, action, 2);
+      const eval2 = evaluateRetrievedContext(project, pass2.context, pass2.chunks);
+
+      logStep(
+        action,
+        `[CRAG] Pass 2 Evaluation Grade: ${eval2.status}`,
+        `score=${eval2.score} academicScore=${eval2.academicScore} techScore=${eval2.techScore}`
+      );
+
+      // Choose best pass context or combine if complementary
+      if (eval2.score >= eval1.score && pass2.context) {
+        finalContext = pass2.context;
+        logStep(action, "[CRAG] Adopted Pass 2 context (higher quality score).");
+      } else {
+        logStep(action, "[CRAG] Kept Pass 1 context (higher or equal quality score).");
+      }
+    } else {
+      logStep(action, "[CRAG] Pass 1 context ACCEPTED without query rewrite.");
     }
 
-    const documentIds = [...new Set(chunks.map((chunk) => chunk.document_id).filter(Boolean))];
-    logStep(action, "Loading matched document metadata and TOC structures.", `documentIds=${documentIds.length}`);
-    const [documents, structures] = await Promise.all([
-      db.collection("pfe_documents").find({ document_id: { $in: documentIds } }).toArray(),
-      db.collection("pfe_structures").find({ document_id: { $in: documentIds } }).toArray(),
-    ]);
-
-    const { context, topDocuments } = buildContextFromResults(chunks, documents, structures);
-    logStep(
-      action,
-      "Retrieved references ready.",
-      `chunks=${chunks.length} reports=${topDocuments.length} structures=${structures.length} contextChars=${context.length} index="${indexName}"`
-    );
-    logStep(
-      action,
-      "Top references:",
-      topDocuments
-        .map((doc) => `${cleanText(doc.subject || doc.filename || doc.documentId, 90)} score=${doc.maxScore.toFixed(3)}`)
-        .join(" | ")
-    );
-
-    return context;
+    logStep(action, "[CRAG] Retrieval complete and ready for LLM prompt augmentation.", `contextChars=${finalContext.length}`);
+    return finalContext;
   } catch (error) {
-    logWarn(action, "Retrieval unavailable. Falling back to standard prompt.", `reason="${error.message}"`);
+    logWarn(action, "[CRAG] Retrieval unavailable. Falling back to standard prompt.", `reason="${error.message}"`);
     return "";
   }
 };
 
 module.exports = {
   buildRetrievalQuery,
+  rewriteRetrievalQuery,
+  evaluateRetrievedContext,
   getReportStructureRagContext,
+  CANONICAL_ACADEMIC_CHAPTERS,
 };

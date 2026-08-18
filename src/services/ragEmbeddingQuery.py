@@ -6,7 +6,7 @@ from sentence_transformers import SentenceTransformer
 
 def main():
     payload = json.load(sys.stdin)
-    text = str(payload.get("text") or "").strip()
+    text = str(payload.get("text") or payload.get("query") or "").strip()
     model_name = str(
         payload.get("model")
         or "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"

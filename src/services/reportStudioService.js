@@ -7,9 +7,20 @@ const {
   buildChapterTranslationPrompt,
   buildCompleteReportPrompt,
 } = require("./reportStudioPromptBuilder");
+const { getSectionRagContext } = require("./reportStudioRagService");
 
 const VALID_STATUSES = new Set(["not-started", "in-progress", "completed"]);
 const VALID_DETAIL_LEVELS = new Set(["summary", "standard", "detailed"]);
+
+const FULL_SECTION_RAG_ACTIONS = new Set([
+  "Expand",
+  "Improve Academic Style",
+  "Make More Technical",
+  "Explain Better",
+  "Continue Writing",
+  "Regenerate Selection",
+  "Rewrite Selection",
+]);
 
 const stripHtml = (html = "") =>
   String(html)
@@ -194,7 +205,13 @@ const generateChapter = async (project, sectionId, detailLevel = "standard", cur
   const section = findSection(project.reportStructure || [], sectionId);
   if (!section) throw new Error("Report structure section not found.");
   const level = VALID_DETAIL_LEVELS.has(detailLevel) ? detailLevel : "standard";
-  const prompt = buildChapterGenerationPrompt(project, section, level, currentChapters);
+
+  const ragContext = await getSectionRagContext(project, section, "generate");
+  console.info(
+    `[report-studio][generate] Section "${section.title}" RAG context injected: ${ragContext ? "yes" : "no"} (chars=${ragContext.length})`
+  );
+
+  const prompt = buildChapterGenerationPrompt(project, section, level, currentChapters, ragContext);
   const response = await callOpenRouter(prompt);
   const payload = parseAiPayload(response, "chapter");
   return normalizeChapter({
@@ -211,9 +228,26 @@ const applyChapterAction = async (project, sectionId, action, currentContent, se
   const section = findSection(project.reportStructure || [], sectionId);
   if (!section) throw new Error("Report structure section not found.");
   if (!currentContent || !stripHtml(currentContent)) throw new Error("Current chapter content is required.");
+
+  const isSelectionScope = Boolean(selectedText && selectedText.trim());
+  const shouldUseRag = !isSelectionScope && FULL_SECTION_RAG_ACTIONS.has(action);
+
+  let ragContext = "";
+  if (shouldUseRag) {
+    ragContext = await getSectionRagContext(project, section, `action-${action}`);
+    console.info(
+      `[report-studio][action] Section "${section.title}" action="${action}" RAG context injected: yes (chars=${ragContext.length})`
+    );
+  } else {
+    console.info(
+      `[report-studio][action] Section "${section.title}" action="${action}" scope=${isSelectionScope ? "selection" : "linguistic"} (RAG bypassed for speed)`
+    );
+  }
+
   const prompt = action === "Translate"
     ? buildChapterTranslationPrompt(project, section, currentContent, currentChapters)
-    : buildChapterActionPrompt(project, section, action, selectedText, currentContent, currentChapters, instructions);
+    : buildChapterActionPrompt(project, section, action, selectedText, currentContent, currentChapters, instructions, ragContext);
+
   const response = await callOpenRouter(prompt);
   const payload = parseAiPayload(response, "chapter");
   return normalizeChapter({
@@ -258,5 +292,6 @@ module.exports = {
   generateCompleteReport,
   saveFinalReport,
   normalizeChapters,
+  normalizeChapter,
   getSourceFingerprint,
 };

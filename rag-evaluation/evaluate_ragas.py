@@ -125,7 +125,9 @@ def evaluate_case(case, model):
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    raw_runs_path = os.path.join(script_dir, "raw_runs.json")
+    raw_runs_path = os.path.join(script_dir, "results", "raw_runs.json")
+    if not os.path.exists(raw_runs_path):
+        raw_runs_path = os.path.join(script_dir, "raw_runs.json")
 
     if not os.path.exists(raw_runs_path):
         print(f"Error: {raw_runs_path} does not exist.")
@@ -138,41 +140,39 @@ def main():
     model = SentenceTransformer("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 
     print(f"Evaluating {len(runs)} test cases across RAG metrics...")
+
     evaluated_cases = []
     for case in runs:
-        res = evaluate_case(case, model)
-        evaluated_cases.append(res)
-        print(f"[{res['id']}] Context Relevance: {res['metrics']['context_relevance']:.3f} | Recall: {res['metrics']['context_recall']:.3f} | Faithfulness: {res['metrics']['faithfulness']:.3f} | Composite: {res['metrics']['composite_rag_score']:.3f}")
+        evaluated_cases.append(evaluate_case(case, model))
 
-    # Compute Averages
-    avg_relevance = round(float(np.mean([c["metrics"]["context_relevance"] for c in evaluated_cases])), 3)
-    avg_recall = round(float(np.mean([c["metrics"]["context_recall"] for c in evaluated_cases])), 3)
-    avg_faithfulness = round(float(np.mean([c["metrics"]["faithfulness"] for c in evaluated_cases])), 3)
-    avg_structure = round(float(np.mean([c["metrics"]["structure_quality"] for c in evaluated_cases])), 3)
-    avg_composite = round(float(np.mean([c["metrics"]["composite_rag_score"] for c in evaluated_cases])), 3)
-    avg_retrieval_ms = round(float(np.mean([c["retrieval_time_ms"] for c in evaluated_cases])), 0)
-    avg_generation_ms = round(float(np.mean([c["generation_time_ms"] for c in evaluated_cases])), 0)
+    # Compute overall metrics
+    mean_relevance = float(np.mean([c["metrics"]["context_relevance"] for c in evaluated_cases]))
+    mean_recall = float(np.mean([c["metrics"]["context_recall"] for c in evaluated_cases]))
+    mean_faithfulness = float(np.mean([c["metrics"]["faithfulness"] for c in evaluated_cases]))
+    mean_structure = float(np.mean([c["metrics"]["structure_quality"] for c in evaluated_cases]))
+    mean_composite = float(np.mean([c["metrics"]["composite_rag_score"] for c in evaluated_cases]))
+    mean_retrieval_ms = float(np.mean([c["retrieval_time_ms"] for c in evaluated_cases]))
+    mean_gen_ms = float(np.mean([c["generation_time_ms"] for c in evaluated_cases]))
 
     summary = {
-        "total_test_cases": len(evaluated_cases),
-        "benchmark_timestamp": "2026-08-17T23:35:00Z",
-        "pipeline": "Current Production RAG (reportStructureRagService.js)",
+        "evaluation_timestamp": runs[0].get("evaluated_at", ""),
         "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-        "retrieval_strategy": "Atlas Vector Search on pfe_chunks with Fallback to pfe_structures Token Ranking",
+        "total_test_cases": len(evaluated_cases),
         "overall_metrics": {
-            "mean_context_relevance": avg_relevance,
-            "mean_context_recall": avg_recall,
-            "mean_faithfulness": avg_faithfulness,
-            "mean_structure_quality": avg_structure,
-            "mean_composite_rag_score": avg_composite,
-            "mean_retrieval_latency_ms": avg_retrieval_ms,
-            "mean_generation_latency_ms": avg_generation_ms,
+            "mean_context_relevance": round(mean_relevance, 3),
+            "mean_context_recall": round(mean_recall, 3),
+            "mean_faithfulness": round(mean_faithfulness, 3),
+            "mean_structure_quality": round(mean_structure, 3),
+            "mean_composite_rag_score": round(mean_composite, 3),
+            "mean_retrieval_time_ms": round(mean_retrieval_ms, 0),
+            "mean_generation_time_ms": round(mean_gen_ms, 0),
         },
         "results": evaluated_cases,
     }
 
     # Save results.json
-    results_path = os.path.join(script_dir, "results.json")
+    results_path = os.path.join(script_dir, "results", "results.json")
+    os.makedirs(os.path.dirname(results_path), exist_ok=True)
     with open(results_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
     print(f"\nSaved detailed results to {results_path}")
@@ -181,7 +181,8 @@ def main():
     generate_markdown_report(summary, script_dir)
 
 def generate_markdown_report(summary, output_dir):
-    report_path = os.path.join(output_dir, "baseline_results.md")
+    report_path = os.path.join(output_dir, "reports", "01_baseline_evaluation_report.md")
+    os.makedirs(os.path.dirname(report_path), exist_ok=True)
     metrics = summary["overall_metrics"]
     cases = summary["results"]
 

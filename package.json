@@ -6,6 +6,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "evaluate:rag": "node rag-evaluation/run_pipeline.js",
+    "evaluate:sections": "node rag-evaluation/run_section_benchmark.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

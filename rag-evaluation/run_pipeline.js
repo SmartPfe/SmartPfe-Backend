@@ -101,7 +101,7 @@ async function main() {
   console.info("\n[Step 3/4] MongoDB disconnected. Running Ragas / Python Evaluation Engine...");
 
   // Save intermediate retrieval data
-  const rawResultsPath = path.join(__dirname, "raw_runs.json");
+  const rawResultsPath = path.join(__dirname, "results", "raw_runs.json");
   fs.writeFileSync(rawResultsPath, JSON.stringify(evaluationRuns, null, 2), "utf-8");
 
   // 3. Run Python evaluation script

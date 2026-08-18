@@ -31,11 +31,57 @@ const formatUml = (umlPreparation = {}) => {
   return [`Classes:\n${classes || "None"}`, `Use cases: ${useCases || "None"}`].join("\n");
 };
 
-const formatChapters = (chapters = [], currentSectionId = "") =>
-  chapters
-    .filter((chapter) => chapter.sectionId !== currentSectionId && chapter.contentMarkdown)
-    .map((chapter, index) => `${index + 1}. ${chapter.title}\n${String(chapter.contentMarkdown).slice(0, 1200)}`)
-    .join("\n\n");
+const formatReportOverview = (structure = [], chapters = []) => {
+  const chapterMap = new Map(chapters.map((c) => [c.sectionId, c]));
+  const lines = [];
+
+  const traverse = (sections, prefix = "") => {
+    sections.forEach((sec, idx) => {
+      const num = prefix ? `${prefix}.${idx + 1}` : `${idx + 1}`;
+      const ch = chapterMap.get(sec.id);
+      const status = ch?.contentMarkdown ? "[Draft Written]" : "[Not Started]";
+      lines.push(`${num} ${sec.title} ${status}`);
+      if (Array.isArray(sec.children) && sec.children.length > 0) {
+        traverse(sec.children, num);
+      }
+    });
+  };
+
+  traverse(structure);
+  return lines.length > 0 ? lines.join("\n") : "No structure available.";
+};
+
+const formatPrecedingSectionSnippet = (chapters = [], currentSectionId = "") => {
+  const currentIndex = chapters.findIndex((c) => c.sectionId === currentSectionId);
+  if (currentIndex <= 0) {
+    // If not found or is first, check if there is any written chapter prior
+    const writtenChapters = chapters.filter((c) => c.contentMarkdown && c.sectionId !== currentSectionId);
+    if (writtenChapters.length === 0) return "";
+    const prev = writtenChapters[writtenChapters.length - 1];
+    const preview = String(prev.contentMarkdown).slice(-450).trim();
+    return `Preceding Chapter (${prev.title}) Closing Excerpt:\n"...${preview}"`;
+  }
+
+  const prev = chapters[currentIndex - 1];
+  if (!prev?.contentMarkdown) return "";
+  const preview = String(prev.contentMarkdown).slice(-450).trim();
+  return `Preceding Chapter (${prev.title}) Closing Excerpt:\n"...${preview}"`;
+};
+
+const formatRetrievedSectionReferences = (ragContext = "") => {
+  const context = String(ragContext || "").trim();
+  if (!context) return "";
+
+  return `
+ACADEMIC REFERENCE LITERATURE & PFE THESIS EXCERPTS:
+Use the retrieved technical PFE excerpts below for academic terminology, depth, and formal explanation:
+- Ground all facts strictly in the student's project context, UML classes, and requirements.
+- Use the reference literature to inspire rigorous academic tone, structural depth, and technical clarity.
+- Do NOT mention RAG, vector search, MongoDB, or external author names.
+
+${context}
+`.trim();
+};
 
 const jsonContract = `
 Return ONLY valid JSON. No markdown fences. No explanation.
@@ -46,7 +92,7 @@ Strict JSON format:
     "contentHtml": "<h2>Section title</h2><p>Academic paragraph...</p>",
     "contentMarkdown": "## Section title\\n\\nAcademic paragraph...",
     "contentLatex": "\\\\section{Section title}\\n\\nAcademic paragraph...",
-    "generatedFrom": ["Project Context", "Functional Requirements"]
+    "generatedFrom": ["Project Context", "Functional Requirements", "Reference Literature"]
   }
 }
 `.trim();
@@ -63,42 +109,39 @@ Writing rules:
 - Do not include numbering in headings; the application manages the table of contents.
 `.trim();
 
-const buildContextBlock = (project, chapters = [], currentSectionId = "") => {
+const buildContextBlock = (project, chapters = [], currentSectionId = "", ragContext = "") => {
   const ctx = getProjectContext(project);
-  return `
-PROJECT CONTEXT:
-${formatContextString(ctx)}
+  const precedingSnippet = formatPrecedingSectionSnippet(chapters, currentSectionId);
+  const referenceLiterature = formatRetrievedSectionReferences(ragContext);
 
-REPORT STRUCTURE:
-${flattenStructure(project.reportStructure || []).join("\n") || "No report structure available."}
-
-PROBLEM STATEMENT:
-${project.description?.problemStatement || "No problem statement available."}
-
-ACTORS:
-${formatActors(project.actors || []) || "No actors available."}
-
-EXISTING SOLUTIONS:
-${formatExistingSolutions(project.existingSolutions || []) || "No existing solutions available."}
-
-FUNCTIONAL REQUIREMENTS:
-${formatRequirements(project.functionalRequirements || []) || "No functional requirements available."}
-
-NON-FUNCTIONAL REQUIREMENTS:
-${formatRequirements(project.nonFunctionalRequirements || []) || "No non-functional requirements available."}
-
-PRODUCT BACKLOG:
-${formatBacklog(project.productBacklog || []) || "No product backlog available."}
-
-UML PREPARATION:
-${formatUml(project.umlPreparation || {})}
-
-PREVIOUSLY GENERATED CHAPTERS:
-${formatChapters(chapters, currentSectionId) || "No previous chapters generated yet."}
-`.trim();
+  return [
+    referenceLiterature ? `${referenceLiterature}\n` : null,
+    "PROJECT CONTEXT:",
+    formatContextString(ctx),
+    "\nREPORT OUTLINE STATUS:",
+    formatReportOverview(project.reportStructure || [], chapters),
+    precedingSnippet ? `\nPREVIOUS TRANSITION CONTEXT:\n${precedingSnippet}` : null,
+    "\nPROBLEM STATEMENT:",
+    project.description?.problemStatement || "No problem statement available.",
+    "\nACTORS:",
+    formatActors(project.actors || []) || "No actors available.",
+    "\nEXISTING SOLUTIONS:",
+    formatExistingSolutions(project.existingSolutions || []) || "No existing solutions available.",
+    "\nFUNCTIONAL REQUIREMENTS:",
+    formatRequirements(project.functionalRequirements || []) || "No functional requirements available.",
+    "\nNON-FUNCTIONAL REQUIREMENTS:",
+    formatRequirements(project.nonFunctionalRequirements || []) || "No non-functional requirements available.",
+    "\nPRODUCT BACKLOG:",
+    formatBacklog(project.productBacklog || []) || "No product backlog available.",
+    "\nUML PREPARATION:",
+    formatUml(project.umlPreparation || {}),
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .trim();
 };
 
-const buildChapterGenerationPrompt = (project, section, detailLevel, chapters) => {
+const buildChapterGenerationPrompt = (project, section, detailLevel, chapters, ragContext = "") => {
   const ctx = getProjectContext(project);
   const lengthGuidance = detailLevel === "summary"
     ? "Write a concise section of 3 to 5 focused paragraphs."
@@ -122,11 +165,11 @@ ${jsonContract}
 
 ${writingRules}
 
-${buildContextBlock(project, chapters, section.id)}
+${buildContextBlock(project, chapters, section.id, ragContext)}
 `.trim();
 };
 
-const buildChapterActionPrompt = (project, section, action, selectedText, currentContent, chapters, instructions = "") => {
+const buildChapterActionPrompt = (project, section, action, selectedText, currentContent, chapters, instructions = "", ragContext = "") => {
   const ctx = getProjectContext(project);
   const studentInstructions = String(instructions || "").trim();
   return `
@@ -162,7 +205,7 @@ ${selectedText || "No selected text. Operate on the entire chapter."}
 CURRENT CHAPTER HTML:
 ${currentContent || "No current content."}
 
-${buildContextBlock(project, chapters, section.id)}
+${buildContextBlock(project, chapters, section.id, ragContext)}
 `.trim();
 };
 

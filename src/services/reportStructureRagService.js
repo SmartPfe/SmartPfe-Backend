@@ -615,7 +615,17 @@ const executeRetrievalPass = async (db, project, queryText, action = "generate",
 /**
  * Self-Correcting RAG (CRAG) Pipeline with single retry and evaluation loop
  */
-const getReportStructureRagContext = async (project, action = "generate") => {
+/**
+ * Self-Correcting RAG (CRAG) Pipeline with single retry and evaluation loop
+ */
+const getReportStructureRagContext = async (project, action = "generate", options = {}) => {
+  const trace = {
+    pass1: null,
+    pass2: null,
+    cragTriggered: false,
+    adoptedPass: 1,
+  };
+
   try {
     if (!mongoose.connection?.db) {
       throw new Error("MongoDB connection is not ready.");
@@ -636,6 +646,14 @@ const getReportStructureRagContext = async (project, action = "generate") => {
 
     // --- CRAG EVALUATION STEP ---
     const eval1 = evaluateRetrievedContext(project, pass1.context, pass1.chunks);
+    trace.pass1 = {
+      score: eval1.score,
+      academicScore: eval1.academicScore,
+      techScore: eval1.techScore,
+      status: eval1.status,
+      missingChapters: eval1.missingChapters,
+    };
+
     logStep(
       action,
       `[CRAG] Pass 1 Evaluation Grade: ${eval1.status}`,
@@ -646,6 +664,7 @@ const getReportStructureRagContext = async (project, action = "generate") => {
 
     // --- PASS 2: Self-Correction via Query Rewriting (if needed) ---
     if (eval1.status === "REWRITE") {
+      trace.cragTriggered = true;
       logStep(action, "[CRAG] Initial retrieval had gaps. Triggering Query Rewriter for 2nd pass...");
       const rewrittenQuery = rewriteRetrievalQuery(project, eval1);
       logStep(action, "[CRAG] Query Rewritten.", `newQueryPreview="${cleanText(rewrittenQuery, 250)}"`);
@@ -653,17 +672,26 @@ const getReportStructureRagContext = async (project, action = "generate") => {
       const pass2 = await executeRetrievalPass(db, project, rewrittenQuery, action, 2);
       const eval2 = evaluateRetrievedContext(project, pass2.context, pass2.chunks);
 
+      trace.pass2 = {
+        score: eval2.score,
+        academicScore: eval2.academicScore,
+        techScore: eval2.techScore,
+        status: eval2.status,
+      };
+
       logStep(
         action,
         `[CRAG] Pass 2 Evaluation Grade: ${eval2.status}`,
         `score=${eval2.score} academicScore=${eval2.academicScore} techScore=${eval2.techScore}`
       );
 
-      // Choose best pass context or combine if complementary
+      // Choose best pass context
       if (eval2.score >= eval1.score && pass2.context) {
         finalContext = pass2.context;
+        trace.adoptedPass = 2;
         logStep(action, "[CRAG] Adopted Pass 2 context (higher quality score).");
       } else {
+        trace.adoptedPass = 1;
         logStep(action, "[CRAG] Kept Pass 1 context (higher or equal quality score).");
       }
     } else {
@@ -671,10 +699,10 @@ const getReportStructureRagContext = async (project, action = "generate") => {
     }
 
     logStep(action, "[CRAG] Retrieval complete and ready for LLM prompt augmentation.", `contextChars=${finalContext.length}`);
-    return finalContext;
+    return options.returnTrace ? { context: finalContext, trace } : finalContext;
   } catch (error) {
     logWarn(action, "[CRAG] Retrieval unavailable. Falling back to standard prompt.", `reason="${error.message}"`);
-    return "";
+    return options.returnTrace ? { context: "", trace } : "";
   }
 };
 

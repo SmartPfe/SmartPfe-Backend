@@ -7,7 +7,7 @@ require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 const { sectionDataset } = require("./section_dataset");
 const { getSectionRagContext, buildSectionRetrievalQuery } = require("../src/services/reportStudioRagService");
 const { buildChapterGenerationPrompt } = require("../src/services/reportStudioPromptBuilder");
-const { callOpenRouter } = require("../src/services/openRouterService");
+const { callGemini } = require("../src/services/geminiService");
 const { normalizeChapter } = require("../src/services/reportStudioService");
 
 const extractJsonPayload = (content) => {
@@ -73,7 +73,7 @@ async function main() {
     }
     console.info(`  -> Context Size: ${ragContext.length} chars (retrieved in ${retrievalTimeMs}ms)`);
 
-    console.info(`  -> Generating section content via OpenRouter LLM...`);
+    console.info(`  -> Generating section content via Gemini LLM...`);
     const prompt = buildChapterGenerationPrompt(
       testCase.project,
       testCase.targetSection,
@@ -88,7 +88,7 @@ async function main() {
 
     try {
       const genStart = Date.now();
-      rawResponse = await callOpenRouter(prompt);
+      rawResponse = await callGemini(prompt, null, { tier: "reasoning" });
       genTimeMs = Date.now() - genStart;
       parsedChapter = normalizeChapterLocal({
         ...extractJsonPayload(rawResponse),

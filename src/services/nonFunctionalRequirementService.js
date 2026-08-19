@@ -1,5 +1,5 @@
 const Project = require("../models/Project");
-const { callOpenRouter } = require("./openRouterService");
+const { callGemini } = require("./geminiService");
 const {
   buildNonFunctionalRequirementGenerationPrompt,
   buildNonFunctionalRequirementRefinementPrompt,
@@ -102,7 +102,7 @@ const getProjectForUser = async (userId, projectId = null) => {
 
 const generateNonFunctionalRequirements = async (project) => {
   const prompt = buildNonFunctionalRequirementGenerationPrompt(project);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt);
   return parseNonFunctionalRequirementsResponse(response);
 };
 
@@ -113,7 +113,7 @@ const refineNonFunctionalRequirements = async (project, currentRequirements, ins
   }
 
   const prompt = buildNonFunctionalRequirementRefinementPrompt(project, requirements, instructions);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt);
   return parseNonFunctionalRequirementsResponse(response);
 };
 
@@ -124,7 +124,7 @@ const translateNonFunctionalRequirements = async (project, currentRequirements) 
   }
 
   const prompt = buildNonFunctionalRequirementTranslationPrompt(project, requirements);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt, null, { tier: "fast" });
   return parseNonFunctionalRequirementsResponse(response);
 };
 

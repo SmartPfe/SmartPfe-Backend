@@ -1,5 +1,5 @@
 const Project = require("../models/Project");
-const { callOpenRouter } = require("./openRouterService");
+const { callGemini } = require("./geminiService");
 const {
   buildActorGenerationPrompt,
   buildActorRefinementPrompt,
@@ -61,7 +61,7 @@ const getProjectForUser = async (userId, projectId = null) => {
 
 const generateActors = async (project) => {
   const prompt = buildActorGenerationPrompt(project);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt);
   return parseActorsResponse(response);
 };
 
@@ -72,7 +72,7 @@ const refineActors = async (project, currentActors, instructions = "") => {
   }
 
   const prompt = buildActorRefinementPrompt(project, actors, instructions);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt);
   return parseActorsResponse(response);
 };
 
@@ -83,7 +83,7 @@ const translateActors = async (project, currentActors) => {
   }
 
   const prompt = buildActorTranslationPrompt(project, actors);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt, null, { tier: "fast" });
   return parseActorsResponse(response);
 };
 

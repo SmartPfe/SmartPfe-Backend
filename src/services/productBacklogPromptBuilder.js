@@ -1,4 +1,4 @@
-const { formatContextString, getProjectContext } = require("./openRouterService");
+const { formatContextString, getProjectContext } = require("./geminiService");
 
 const getPrimaryActors = (actors = []) =>
   actors.filter((actor) => actor?.type !== "external" && String(actor?.name || "").trim());

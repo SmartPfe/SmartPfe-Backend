@@ -1,5 +1,5 @@
 const Project = require("../models/Project");
-const { callOpenRouter } = require("./openRouterService");
+const { callGemini } = require("./geminiService");
 const { getSourceFingerprint, normalizePresentation } = require("./presentationService");
 const {
   buildPitchGenerationPrompt,
@@ -243,7 +243,7 @@ const ensurePresentationReady = (project) => {
 const generatePitch = async (project) => {
   const presentation = ensurePresentationReady(project);
   const prompt = buildPitchGenerationPrompt(project, presentation);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt);
   return parsePitchResponse(response, project);
 };
 
@@ -255,7 +255,7 @@ const refinePitch = async (project, currentPitch, instructions = "") => {
   }
 
   const prompt = buildPitchRefinementPrompt(project, presentation, pitch, instructions);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt);
   return parsePitchResponse(response, project);
 };
 
@@ -263,7 +263,7 @@ const generatePitchSlide = async (project, currentPitch, slideId) => {
   const presentation = ensurePresentationReady(project);
   const pitch = normalizePitch(currentPitch, project);
   const prompt = buildPitchSlideGenerationPrompt(project, presentation, pitch, slideId);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt);
   const slide = parsePitchSlideResponse(response, project, slideId);
   return normalizePitch({
     ...pitch,
@@ -280,7 +280,7 @@ const refinePitchSlide = async (project, currentPitch, slideId, instructions = "
   }
 
   const prompt = buildPitchSlideRefinementPrompt(project, presentation, pitch, slideId, currentSlide, instructions);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt);
   const slide = parsePitchSlideResponse(response, project, slideId);
   return normalizePitch({
     ...pitch,
@@ -297,7 +297,7 @@ const translatePitchSlide = async (project, currentPitch, slideId) => {
   }
 
   const prompt = buildPitchSlideTranslationPrompt(project, presentation, pitch, slideId, currentSlide);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt, null, { tier: "fast" });
   const slide = parsePitchSlideResponse(response, project, slideId, currentSlide);
   return normalizePitch({
     ...pitch,

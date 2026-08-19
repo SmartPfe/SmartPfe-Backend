@@ -22,8 +22,7 @@ The backend is built with:
 - MongoDB
 - Mongoose
 - JWT authentication
-- OpenRouter for most text-generation AI calls
-- Gemini for jury simulation audio analysis
+- Google Gemini API (task-tiered: Flash 3.7, 2.5, 3.5, Flash-Lite) for all text generation & audio jury simulation
 - A Python helper for RAG query embeddings
 
 ## 2. How To Run The Backend
@@ -70,8 +69,7 @@ Important variables:
 | `MONGO_URI` | MongoDB connection string. |
 | `FRONTEND_URL` | Allowed frontend origins for CORS. Can contain multiple comma-separated origins. |
 | `JWT_SECRET` | Secret used to sign and verify JWT tokens. |
-| `OPENROUTER_API_KEY` | API key used for most text-generation features. |
-| `GEMINI_API_KEY` | API key used by jury simulation audio analysis. |
+| `GEMINI_API_KEY` | Unified Google Gemini API key used for all AI text generation & jury simulation audio analysis. |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID checked during Google login. |
 | `BREVO_API_KEY` | Email provider API key for reset/verification emails. |
 | `EMAIL_FROM` | Sender address for outgoing emails. |
@@ -270,17 +268,23 @@ src/services/<feature>PromptBuilder.js
 
 The service validates and normalizes data. The prompt builder prepares a strict prompt and JSON contract when the response must be structured.
 
-## 9. OpenRouter AI Integration
+## 9. Google Gemini AI Integration
 
 Main file:
 
 ```text
-src/services/openRouterService.js
+src/services/geminiService.js
 ```
 
-The backend sends chat-completion requests to OpenRouter. It uses a fallback model list. If one model is unavailable or rate-limited, the service tries the next configured model.
+The backend sends content generation requests to Google Gemini via the `v1beta` REST API. It uses a **Task-Tiered Routing Architecture** with semantic presets and multi-model fallback chains:
 
-The helper also builds a reusable project context from the MongoDB `Project` document. This project context is included in prompts so generated content is based on the student's real project information.
+- **Reasoning Tier (`gemini-3.7-flash` -> `gemini-2.5-flash` -> `gemini-3.5-flash`)**: Complex UML modeling, Report Studio chapter generation, RAG thesis synthesis, complete thesis compilation.
+- **Default Tier (`gemini-2.5-flash` -> `gemini-3.5-flash` -> `gemini-3.7-flash` -> `gemini-2.5-flash-lite`)**: Problem statement, requirements, product backlog, presentation slides, speech pitch.
+- **Fast Tier (`gemini-2.5-flash-lite` -> `gemini-3.5-flash-lite` -> `gemini-3.1-flash-lite`)**: Floating dock text rewrite actions (Expand, Simplify, Academic Tone) and in-place translations.
+
+If one model hits a rate limit (429), the service automatically retries with backoff and cascades to the next configured model in the tier.
+
+The helper also builds a reusable project context from the MongoDB `Project` document. This project context is included in prompts so generated content is grounded in the student's real project information.
 
 Used by:
 

@@ -1,4 +1,4 @@
-const { getProjectContext } = require("./openRouterService");
+const { getProjectContext } = require("./geminiService");
 const { buildContextBlock, formatCurrentPresentation } = require("./presentationPromptBuilder");
 
 const formatCurrentPitch = (pitch = {}) =>

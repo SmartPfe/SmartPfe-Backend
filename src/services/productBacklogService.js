@@ -1,5 +1,5 @@
 const Project = require("../models/Project");
-const { callOpenRouter } = require("./openRouterService");
+const { callGemini } = require("./geminiService");
 const {
   buildProductBacklogGenerationPrompt,
   buildProductBacklogRefinementPrompt,
@@ -214,7 +214,7 @@ const getProjectForUser = async (userId, projectId = null) => {
 
 const generateProductBacklog = async (project) => {
   const prompt = buildProductBacklogGenerationPrompt(project);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt);
   return parseProductBacklogResponse(response, project);
 };
 
@@ -225,7 +225,7 @@ const refineProductBacklog = async (project, currentBacklog, instructions = "") 
   }
 
   const prompt = buildProductBacklogRefinementPrompt(project, productBacklog, instructions);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt);
   return parseProductBacklogResponse(response, project);
 };
 
@@ -236,7 +236,7 @@ const translateProductBacklog = async (project, currentBacklog) => {
   }
 
   const prompt = buildProductBacklogTranslationPrompt(project, productBacklog);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt, null, { tier: "fast" });
   return parseProductBacklogResponse(response, project);
 };
 

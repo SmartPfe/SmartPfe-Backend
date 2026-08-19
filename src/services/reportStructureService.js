@@ -1,5 +1,5 @@
 const Project = require("../models/Project");
-const { callOpenRouter } = require("./openRouterService");
+const { callGemini } = require("./geminiService");
 const {
   buildReportStructureGenerationPrompt,
   buildReportStructureRefinementPrompt,
@@ -93,7 +93,7 @@ const generateReportStructure = async (project) => {
   console.info(
     `[report-structure][generate] RAG context injected: ${ragContext ? "yes" : "no"} contextChars=${ragContext.length} promptChars=${prompt.length}`
   );
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt);
   return parseReportStructureResponse(response);
 };
 
@@ -105,7 +105,7 @@ const refineReportStructure = async (project, currentStructure, instructions = "
   console.info(
     `[report-structure][refine] RAG context injected: ${ragContext ? "yes" : "no"} contextChars=${ragContext.length} promptChars=${prompt.length}`
   );
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt);
   return parseReportStructureResponse(response);
 };
 
@@ -113,7 +113,7 @@ const translateReportStructure = async (project, currentStructure) => {
   const reportStructure = normalizeSections(currentStructure);
   if (reportStructure.length === 0) throw new Error("Current report structure is required to translate.");
   const prompt = buildReportStructureTranslationPrompt(project, reportStructure);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt, null, { tier: "fast" });
   return parseReportStructureResponse(response);
 };
 

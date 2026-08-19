@@ -1,5 +1,5 @@
 const Project = require("../models/Project");
-const { callAI } = require("../services/openRouterService");
+const { callAI } = require("../services/geminiService");
 const {
   generateActors: generateActorsService,
   refineActors: refineActorsService,

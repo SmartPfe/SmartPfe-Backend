@@ -7,7 +7,7 @@ require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 const { dataset } = require("./dataset");
 const { getReportStructureRagContext, buildRetrievalQuery } = require("../src/services/reportStructureRagService");
 const { buildReportStructureGenerationPrompt } = require("../src/services/reportStructurePromptBuilder");
-const { callOpenRouter } = require("../src/services/openRouterService");
+const { callGemini } = require("../src/services/geminiService");
 const { normalizeSections } = require("../src/services/reportStructureService");
 
 const extractJsonPayload = (content) => {
@@ -65,7 +65,7 @@ async function main() {
     console.info(`-> RAG Context: ${ragContext.length} chars (retrieved in ${retrievalTimeMs}ms)`);
 
     // Build Prompt & Call LLM
-    console.info(`-> Generating report structure via OpenRouter LLM...`);
+    console.info(`-> Generating report structure via Gemini LLM...`);
     const prompt = buildReportStructureGenerationPrompt(testCase.project, ragContext);
     let rawResponse = "";
     let parsedSections = [];
@@ -73,7 +73,7 @@ async function main() {
     
     try {
       const genStart = Date.now();
-      rawResponse = await callOpenRouter(prompt);
+      rawResponse = await callGemini(prompt);
       generationTimeMs = Date.now() - genStart;
       parsedSections = parseReportStructure(rawResponse);
       console.info(`-> Generated ${parsedSections.length} top-level chapters in ${generationTimeMs}ms`);

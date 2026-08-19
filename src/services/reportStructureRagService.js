@@ -2,7 +2,7 @@ const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
 const mongoose = require("mongoose");
-const { getProjectContext } = require("./openRouterService");
+const { getProjectContext } = require("./geminiService");
 
 const EMBEDDING_MODEL_NAME =
   process.env.RAG_EMBEDDING_MODEL ||

@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 const Project = require("../models/Project");
-const { callOpenRouter } = require("./openRouterService");
+const { callGemini } = require("./geminiService");
 const {
   buildPresentationGenerationPrompt,
   buildPresentationRefinementPrompt,
@@ -158,7 +158,7 @@ const savePresentation = async (userId, projectId, presentation) => {
 const generatePresentation = async (project, durationMinutes) => {
   const duration = normalizeDuration(durationMinutes);
   const prompt = buildPresentationGenerationPrompt(project, duration);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt);
   return parsePresentationResponse(response, project, duration);
 };
 
@@ -173,7 +173,7 @@ const refinePresentation = async (project, currentPresentation, instructions = "
     if (!currentSlide) throw new Error("Selected presentation slide was not found.");
 
     const prompt = buildPresentationSlideRefinementPrompt(project, presentation, slideId, currentSlide, instructions);
-    const response = await callOpenRouter(prompt);
+    const response = await callGemini(prompt);
     const slide = {
       ...parsePresentationSlideResponse(response, project, currentSlide),
       language: getProjectLanguage(project),
@@ -185,7 +185,7 @@ const refinePresentation = async (project, currentPresentation, instructions = "
   }
 
   const prompt = buildPresentationRefinementPrompt(project, presentation, instructions);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt);
   return parsePresentationResponse(response, project, presentation.durationMinutes);
 };
 
@@ -195,7 +195,7 @@ const translatePresentationSlide = async (project, currentPresentation, slideId)
   if (!currentSlide) throw new Error("Selected presentation slide is required to translate.");
 
   const prompt = buildPresentationSlideTranslationPrompt(project, presentation, slideId, currentSlide);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt, null, { tier: "fast" });
   const slide = {
     ...parsePresentationSlideResponse(response, project, currentSlide),
     language: getProjectLanguage(project),

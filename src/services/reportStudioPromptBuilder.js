@@ -1,4 +1,4 @@
-const { formatContextString, getProjectContext } = require("./openRouterService");
+const { formatContextString, getProjectContext } = require("./geminiService");
 
 const flattenStructure = (sections = [], prefix = "") =>
   sections.flatMap((section, index) => {

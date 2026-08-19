@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 const Project = require("../models/Project");
-const { callOpenRouter } = require("./openRouterService");
+const { callGemini } = require("./geminiService");
 const {
   buildChapterGenerationPrompt,
   buildChapterActionPrompt,
@@ -212,7 +212,7 @@ const generateChapter = async (project, sectionId, detailLevel = "standard", cur
   );
 
   const prompt = buildChapterGenerationPrompt(project, section, level, currentChapters, ragContext);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt, null, { tier: "reasoning" });
   const payload = parseAiPayload(response, "chapter");
   return normalizeChapter({
     ...payload,
@@ -248,7 +248,8 @@ const applyChapterAction = async (project, sectionId, action, currentContent, se
     ? buildChapterTranslationPrompt(project, section, currentContent, currentChapters)
     : buildChapterActionPrompt(project, section, action, selectedText, currentContent, currentChapters, instructions, ragContext);
 
-  const response = await callOpenRouter(prompt);
+  const tier = (isSelectionScope || action === "Translate") ? "fast" : "reasoning";
+  const response = await callGemini(prompt, null, { tier });
   const payload = parseAiPayload(response, "chapter");
   return normalizeChapter({
     ...payload,
@@ -265,7 +266,7 @@ const generateCompleteReport = async (project, currentChapters = []) => {
     .filter((chapter) => stripHtml(chapter.contentHtml));
   if (chapters.length === 0) throw new Error("Generated chapters are required before creating the complete report.");
   const prompt = buildCompleteReportPrompt(project, chapters);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt, null, { tier: "reasoning" });
   const payload = parseAiPayload(response, "finalReport");
   const contentMarkdown = String(payload.contentMarkdown || htmlToMarkdown(payload.contentHtml)).trim();
   return {

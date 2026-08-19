@@ -1,5 +1,5 @@
 const Project = require("../models/Project");
-const { callOpenRouter } = require("./openRouterService");
+const { callGemini } = require("./geminiService");
 const {
   buildExistingSolutionGenerationPrompt,
   buildExistingSolutionRefinementPrompt,
@@ -69,7 +69,7 @@ const getProjectForUser = async (userId, projectId = null) => {
 
 const generateExistingSolutions = async (project) => {
   const prompt = buildExistingSolutionGenerationPrompt(project);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt);
   return parseExistingSolutionsResponse(response);
 };
 
@@ -80,7 +80,7 @@ const refineExistingSolutions = async (project, currentSolutions, instructions =
   }
 
   const prompt = buildExistingSolutionRefinementPrompt(project, solutions, instructions);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt);
   return parseExistingSolutionsResponse(response);
 };
 
@@ -91,7 +91,7 @@ const translateExistingSolutions = async (project, currentSolutions) => {
   }
 
   const prompt = buildExistingSolutionTranslationPrompt(project, solutions);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt, null, { tier: "fast" });
   return parseExistingSolutionsResponse(response);
 };
 

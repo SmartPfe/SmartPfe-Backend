@@ -1,5 +1,5 @@
 const Project = require("../models/Project");
-const { callOpenRouter } = require("./openRouterService");
+const { callGemini } = require("./geminiService");
 const {
   buildUmlPreparationGenerationPrompt,
   buildUmlPreparationRefinementPrompt,
@@ -234,7 +234,7 @@ const getProjectForUser = async (userId, projectId = null) => {
 
 const generateUmlPreparation = async (project, diagramType = "all", currentPreparation = null) => {
   const prompt = buildUmlPreparationGenerationPrompt(project, diagramType);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt, null, { tier: "reasoning" });
   let parsed;
   try {
     parsed = JSON.parse(extractJsonPayload(response));
@@ -250,7 +250,7 @@ const generateUmlPreparation = async (project, diagramType = "all", currentPrepa
 const refineUmlPreparation = async (project, currentUmlPreparation, instructions = "", diagramType = "all") => {
   const umlPreparation = normalizeUmlPreparation(currentUmlPreparation);
   const prompt = buildUmlPreparationRefinementPrompt(project, umlPreparation, instructions, diagramType);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt, null, { tier: "reasoning" });
   let parsed;
   try {
     parsed = JSON.parse(extractJsonPayload(response));
@@ -269,7 +269,7 @@ const translateUmlPreparation = async (project, currentUmlPreparation) => {
   }
 
   const prompt = buildUmlPreparationTranslationPrompt(project, umlPreparation);
-  const response = await callOpenRouter(prompt);
+  const response = await callGemini(prompt, null, { tier: "fast" });
   return parseUmlPreparationResponse(response);
 };
 

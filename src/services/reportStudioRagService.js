@@ -1,7 +1,7 @@
 const path = require("path");
 const { spawn } = require("child_process");
 const mongoose = require("mongoose");
-const { getProjectContext } = require("./openRouterService");
+const { getProjectContext } = require("./geminiService");
 
 const EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2";
 const PYTHON_SCRIPT_PATH = path.join(__dirname, "ragEmbeddingQuery.py");

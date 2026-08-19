@@ -6,7 +6,7 @@ const { buildJurySimulationAnalysisPrompt } = require("./jurySimulationPromptBui
 
 const MAX_AUDIO_BYTES = 40 * 1024 * 1024;
 const MAX_DEFENSE_SECONDS = 25 * 60;
-const MIN_DEFENSE_SECONDS = 5;
+const MIN_DEFENSE_SECONDS = 120; // Minimum 2 minutes required for meaningful evaluation
 
 const clampScore = (value) => {
   const score = Number(value);
@@ -181,7 +181,7 @@ const analyzeJurySimulation = async ({
 
   const safeActualSeconds = Math.max(0, Math.round(Number(actualSeconds) || 0));
   if (safeActualSeconds < MIN_DEFENSE_SECONDS) {
-    throw new Error("The recording is too short to analyze. Please record at least a short defense attempt.");
+    throw new Error("The defense recording is too short (less than 2 minutes). Please record at least 2 minutes to receive an accurate jury evaluation.");
   }
 
   if (safeActualSeconds > MAX_DEFENSE_SECONDS) {

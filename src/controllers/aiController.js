@@ -56,6 +56,11 @@ const {
 const {
   analyzeJurySimulation: analyzeJurySimulationService,
 } = require("../services/jurySimulationService");
+const {
+  generateJuryQA: generateJuryQAService,
+  answerJuryQAQuestion: answerJuryQAQuestionService,
+  finalizeJuryQA: finalizeJuryQAService,
+} = require("../services/juryQAService");
 const { createGenerationNotification } = require("../services/notificationService");
 
 const notifyGenerationComplete = async (req, project, feature) => {
@@ -919,6 +924,89 @@ const analyzeJurySimulation = async (req, res) => {
   }
 };
 
+// @desc    Generate or resume jury Q&A questions after defense analysis
+// @route   POST /api/ai/jury-qa/generate
+// @access  Private
+const generateJuryQA = async (req, res) => {
+  try {
+    const { projectId, juryAttemptId, presentation = null, pitch = null } = req.body;
+    if (!projectId || !juryAttemptId) {
+      return res.status(400).json({ message: "Project id and jury attempt id are required." });
+    }
+
+    const payload = await generateJuryQAService({
+      userId: req.user._id,
+      projectId,
+      juryAttemptId,
+      submittedPresentation: presentation,
+      submittedPitch: pitch,
+    });
+
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error("[ai] generate jury Q&A error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "AI jury question generation failed." });
+  }
+};
+
+// @desc    Transcribe and evaluate one recorded Q&A answer
+// @route   POST /api/ai/jury-qa/:sessionId/answer
+// @access  Private
+const answerJuryQAQuestion = async (req, res) => {
+  try {
+    const { projectId, questionId, durationSeconds } = req.body;
+    if (!projectId || !questionId) {
+      return res.status(400).json({ message: "Project id and question id are required." });
+    }
+
+    const payload = await answerJuryQAQuestionService({
+      userId: req.user._id,
+      projectId,
+      sessionId: req.params.sessionId,
+      questionId,
+      audioFile: req.file,
+      durationSeconds,
+    });
+
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error("[ai] answer jury Q&A error:", error.message);
+    const status = error.message.includes("not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "AI jury answer evaluation failed." });
+  }
+};
+
+// @desc    Finalize the full defense + Q&A jury report
+// @route   POST /api/ai/jury-qa/:sessionId/finalize
+// @access  Private
+const finalizeJuryQA = async (req, res) => {
+  try {
+    const { projectId } = req.body;
+    if (!projectId) {
+      return res.status(400).json({ message: "Project id is required." });
+    }
+
+    const payload = await finalizeJuryQAService({
+      userId: req.user._id,
+      projectId,
+      sessionId: req.params.sessionId,
+    });
+
+    await createGenerationNotification({
+      userId: req.user._id,
+      projectId,
+      feature: "juryFinalEvaluation",
+    });
+
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error("[ai] finalize jury Q&A error:", error.message);
+    const status = error.message.includes("not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "AI final jury report generation failed." });
+  }
+};
+
 module.exports = {
   generateProblemStatement,
   refineProblemStatement,
@@ -956,4 +1044,7 @@ module.exports = {
   refinePitchSlide,
   translatePitchSlide,
   analyzeJurySimulation,
+  generateJuryQA,
+  answerJuryQAQuestion,
+  finalizeJuryQA,
 };

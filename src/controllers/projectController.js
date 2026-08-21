@@ -46,6 +46,10 @@ const {
 const {
   getJurySimulation: getJurySimulationService,
 } = require("../services/jurySimulationService");
+const {
+  getJuryQASessions: getJuryQASessionsService,
+  getJuryQASession: getJuryQASessionService,
+} = require("../services/juryQAService");
 
 const createGenerationNotificationIfRequested = async (req, projectId) => {
   const feature = String(req.body?.generationFeature || "").trim();
@@ -610,6 +614,34 @@ const getJurySimulation = async (req, res) => {
   }
 };
 
+// @desc    Get jury Q&A sessions for a project owned by the current user
+// @route   GET /api/projects/:id/jury-qa
+// @access  Private
+const getJuryQASessions = async (req, res) => {
+  try {
+    const payload = await getJuryQASessionsService(req.user._id, req.params.id);
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error("[project] getJuryQASessions error:", error.message);
+    const status = error.message.includes("Project not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Failed to load jury Q&A sessions." });
+  }
+};
+
+// @desc    Get one jury Q&A session for a project owned by the current user
+// @route   GET /api/projects/:id/jury-qa/:sessionId
+// @access  Private
+const getJuryQASession = async (req, res) => {
+  try {
+    const payload = await getJuryQASessionService(req.user._id, req.params.id, req.params.sessionId);
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error("[project] getJuryQASession error:", error.message);
+    const status = error.message.includes("not found") ? 404 : 500;
+    res.status(status).json({ message: error.message || "Failed to load jury Q&A session." });
+  }
+};
+
 module.exports = {
   createProject,
   getMyProject,
@@ -637,4 +669,6 @@ module.exports = {
   getPitch,
   updatePitch,
   getJurySimulation,
+  getJuryQASessions,
+  getJuryQASession,
 };

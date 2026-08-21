@@ -340,6 +340,117 @@ const jurySimulationAttemptSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const juryQAAnswerEvaluationSchema = new mongoose.Schema(
+  {
+    score: { type: Number, default: 0, min: 0, max: 100 },
+    scores: {
+      correctness: { type: Number, default: 0, min: 0, max: 100 },
+      relevance: { type: Number, default: 0, min: 0, max: 100 },
+      clarity: { type: Number, default: 0, min: 0, max: 100 },
+      depth: { type: Number, default: 0, min: 0, max: 100 },
+      justification: { type: Number, default: 0, min: 0, max: 100 },
+    },
+    strengths: { type: [String], default: [] },
+    weaknesses: { type: [String], default: [] },
+    missingPoints: { type: [String], default: [] },
+    feedback: { type: String, default: "", trim: true },
+    idealAnswer: { type: String, default: "", trim: true },
+    shouldAskFollowUp: { type: Boolean, default: false },
+    followUpReason: { type: String, default: "", trim: true },
+  },
+  { _id: false }
+);
+
+const juryQAQuestionSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true, trim: true },
+    question: { type: String, required: true, trim: true },
+    category: { type: String, default: "Project Understanding", trim: true },
+    difficulty: {
+      type: String,
+      enum: ["easy", "medium", "hard"],
+      default: "medium",
+    },
+    source: {
+      type: String,
+      enum: ["report", "presentation", "defense", "cross-analysis"],
+      default: "cross-analysis",
+    },
+    reason: { type: String, default: "", trim: true },
+    relatedSlide: { type: Number, min: 1 },
+    relatedSection: { type: String, default: "", trim: true },
+    followUpFor: { type: String, default: "", trim: true },
+    answer: {
+      transcript: { type: String, default: "", trim: true },
+      audioMetadata: {
+        mimeType: { type: String, default: "", trim: true },
+        sizeBytes: { type: Number, default: 0, min: 0 },
+      },
+      durationSeconds: { type: Number, default: 0, min: 0 },
+      answeredAt: { type: Date },
+    },
+    evaluation: {
+      type: juryQAAnswerEvaluationSchema,
+      default: undefined,
+    },
+  },
+  { _id: false }
+);
+
+const juryQASessionSchema = new mongoose.Schema(
+  {
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project" },
+    juryAttemptId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    attemptNumber: { type: Number, default: 0, min: 0 },
+    presentationVersion: { type: Number, required: true, min: 0 },
+    pitchVersion: { type: Number, required: true, min: 0 },
+    reportVersion: { type: Number, default: 0, min: 0 },
+    questions: { type: [juryQAQuestionSchema], default: [] },
+    finalEvaluation: {
+      overallScore: { type: Number, default: 0, min: 0, max: 100 },
+      overallLabel: { type: String, default: "", trim: true },
+      readinessLevel: {
+        type: String,
+        enum: ["Not Ready", "Needs More Practice", "Almost Ready", "Ready", "Highly Ready", ""],
+        default: "",
+      },
+      readinessPercent: { type: Number, default: 0, min: 0, max: 100 },
+      readinessExplanation: { type: String, default: "", trim: true },
+      categoryScores: {
+        presentationDelivery: { type: Number, default: 0, min: 0, max: 100 },
+        contentMastery: { type: Number, default: 0, min: 0, max: 100 },
+        technicalKnowledge: { type: Number, default: 0, min: 0, max: 100 },
+        qaPerformance: { type: Number, default: 0, min: 0, max: 100 },
+        clarity: { type: Number, default: 0, min: 0, max: 100 },
+        criticalThinking: { type: Number, default: 0, min: 0, max: 100 },
+      },
+      weights: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+      strengths: { type: [String], default: [] },
+      weaknesses: { type: [String], default: [] },
+      defenseVsQA: { type: String, default: "", trim: true },
+      revisionTopics: {
+        type: [
+          {
+            topic: { type: String, default: "", trim: true },
+            reason: { type: String, default: "", trim: true },
+          },
+        ],
+        default: [],
+      },
+      actionPlan: { type: [String], default: [] },
+    },
+    status: {
+      type: String,
+      enum: ["generated", "in-progress", "completed", "failed"],
+      default: "generated",
+    },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now },
+    completedAt: { type: Date },
+  },
+  { _id: true }
+);
+
 const projectSchema = new mongoose.Schema(
   {
     user: {
@@ -438,6 +549,7 @@ const projectSchema = new mongoose.Schema(
     },
     jurySimulation: {
       attempts: { type: [jurySimulationAttemptSchema], default: [] },
+      qaSessions: { type: [juryQASessionSchema], default: [] },
     },
   },
   { timestamps: true }

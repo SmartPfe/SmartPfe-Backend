@@ -135,6 +135,9 @@ const getJurySimulation = async (userId, projectId) => {
   return {
     ...versions,
     attempts: withCurrentMarkers(project.jurySimulation?.attempts || [], versions),
+    qaSessions: (project.jurySimulation?.qaSessions || [])
+      .map((session) => (typeof session.toObject === "function" ? session.toObject() : session))
+      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()),
   };
 };
 
@@ -225,6 +228,7 @@ const analyzeJurySimulation = async ({
 
   project.jurySimulation = {
     attempts: [...attempts, attempt],
+    qaSessions: project.jurySimulation?.qaSessions || [],
   };
   await project.save();
 

@@ -38,6 +38,9 @@ const {
   refinePitchSlide,
   translatePitchSlide,
   analyzeJurySimulation,
+  generateJuryQA,
+  answerJuryQAQuestion,
+  finalizeJuryQA,
 } = require("../controllers/aiController");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -90,5 +93,8 @@ router.post("/pitch/slide/generate", protect, generatePitchSlide);
 router.post("/pitch/slide/refine", protect, refinePitchSlide);
 router.post("/pitch/slide/translate", protect, translatePitchSlide);
 router.post("/jury-simulation/analyze", protect, upload.single("audio"), analyzeJurySimulation);
+router.post("/jury-qa/generate", protect, generateJuryQA);
+router.post("/jury-qa/:sessionId/answer", protect, upload.single("audio"), answerJuryQAQuestion);
+router.post("/jury-qa/:sessionId/finalize", protect, finalizeJuryQA);
 
 module.exports = router;

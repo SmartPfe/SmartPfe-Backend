@@ -80,6 +80,46 @@ const JURY_ANALYSIS_RESPONSE_SCHEMA = {
   ],
 };
 
+const stringList = stringArraySchema;
+
+const JURY_ANSWER_RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    transcript: { type: "string" },
+    score: { type: "integer" },
+    scores: {
+      type: "object",
+      properties: {
+        correctness: { type: "integer" },
+        relevance: { type: "integer" },
+        clarity: { type: "integer" },
+        depth: { type: "integer" },
+        justification: { type: "integer" },
+      },
+      required: ["correctness", "relevance", "clarity", "depth", "justification"],
+    },
+    strengths: stringList,
+    weaknesses: stringList,
+    missingPoints: stringList,
+    feedback: { type: "string" },
+    idealAnswer: { type: "string" },
+    shouldAskFollowUp: { type: "boolean" },
+    followUpReason: { type: "string" },
+  },
+  required: [
+    "transcript",
+    "score",
+    "scores",
+    "strengths",
+    "weaknesses",
+    "missingPoints",
+    "feedback",
+    "idealAnswer",
+    "shouldAskFollowUp",
+    "followUpReason",
+  ],
+};
+
 const normalizeGeminiAudioMimeType = (mimeType = "") => {
   const cleanMimeType = String(mimeType || "").split(";")[0].trim().toLowerCase();
   if (cleanMimeType === "audio/mpeg") return "audio/mp3";
@@ -144,6 +184,53 @@ const callGeminiModel = async ({ model, system, userText, audioBase64, mimeType 
   return text;
 };
 
+const callGeminiAudioJsonModel = async ({ model, system, userText, audioBase64, mimeType, responseSchema, temperature = 0.2 }) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  const audioMimeType = normalizeGeminiAudioMimeType(mimeType);
+
+  const response = await fetch(`${GEMINI_BASE_URL}/models/${model}:generateContent?key=${apiKey}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: `${system}\n\n${userText}` },
+            {
+              inlineData: {
+                mimeType: audioMimeType,
+                data: audioBase64,
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature,
+        maxOutputTokens: 8192,
+        responseMimeType: "application/json",
+        responseSchema,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gemini model ${model} failed with status ${response.status}: ${errorText.slice(0, 500)}`);
+  }
+
+  const data = await response.json();
+  const text = getGeminiText(data);
+  if (!text) {
+    throw new Error(`Gemini model ${model} returned an empty response.`);
+  }
+
+  return text;
+};
+
 const callGeminiJuryAnalysis = async ({ system, userText, audioBase64, mimeType }) => {
   if (!process.env.GEMINI_API_KEY) {
     throw new Error("AI defense analysis is not configured on the server.");
@@ -166,7 +253,37 @@ const callGeminiJuryAnalysis = async ({ system, userText, audioBase64, mimeType 
   throw new Error("AI defense analysis is temporarily unavailable. Please try again in a few minutes.");
 };
 
+const callGeminiJuryAnswerEvaluation = async ({ system, userText, audioBase64, mimeType }) => {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("AI jury answer evaluation is not configured on the server.");
+  }
+
+  const failures = [];
+
+  for (const model of GEMINI_JURY_MODELS) {
+    try {
+      const text = await callGeminiAudioJsonModel({
+        model,
+        system,
+        userText,
+        audioBase64,
+        mimeType,
+        responseSchema: JURY_ANSWER_RESPONSE_SCHEMA,
+      });
+      console.info(`[juryQA] Gemini answer evaluation succeeded with ${model}.`);
+      return { text, model };
+    } catch (error) {
+      failures.push(`${model}: ${error.message}`);
+      console.warn(`[juryQA] Gemini model ${model} failed; trying next fallback.`);
+    }
+  }
+
+  console.error("[juryQA] All Gemini jury answer models failed:", failures.join(" | "));
+  throw new Error("AI jury answer evaluation is temporarily unavailable. Please try again in a few minutes.");
+};
+
 module.exports = {
   callGeminiJuryAnalysis,
+  callGeminiJuryAnswerEvaluation,
   GEMINI_JURY_MODELS,
 };

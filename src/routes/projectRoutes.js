@@ -27,6 +27,8 @@ const {
   getPitch,
   updatePitch,
   getJurySimulation,
+  getJuryQASessions,
+  getJuryQASession,
 } = require("../controllers/projectController");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -57,5 +59,7 @@ router.put("/:id/presentation", protect, updatePresentation);
 router.get("/:id/pitch", protect, getPitch);
 router.put("/:id/pitch", protect, updatePitch);
 router.get("/:id/jury-simulation", protect, getJurySimulation);
+router.get("/:id/jury-qa", protect, getJuryQASessions);
+router.get("/:id/jury-qa/:sessionId", protect, getJuryQASession);
 
 module.exports = router;

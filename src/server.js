@@ -30,7 +30,8 @@ const allowedOrigins = Array.from(
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://198.244.151.244",
-    "http://staget.tn"
+    "http://staget.tn",
+    "https://staget.tn"
   ])
 );
 

@@ -70,8 +70,9 @@ Important variables:
 | `FRONTEND_URL` | Allowed frontend origins for CORS. Can contain multiple comma-separated origins. |
 | `JWT_SECRET` | Secret used to sign and verify JWT tokens. |
 | `GEMINI_API_KEY` | Unified Google Gemini API key used for all AI text generation & jury simulation audio analysis. |
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID checked during Google login. |
-| `BREVO_API_KEY` | Email provider API key for reset/verification emails. |
+| `EMAIL_SERVICE` | Email provider service (default `gmail`). |
+| `EMAIL_USER` | Email address used to authenticate and send emails. |
+| `EMAIL_PASS` | Google App Password (16 characters) or SMTP password. |
 | `EMAIL_FROM` | Sender address for outgoing emails. |
 | `RAG_VECTOR_INDEX_NAME` | Preferred MongoDB vector search index name for RAG. |
 | `RAG_PYTHON_COMMAND` | Optional explicit Python executable for query embeddings. |

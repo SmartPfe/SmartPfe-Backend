@@ -22,8 +22,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.7.1",
     "multer": "^2.2.0",
-    "nodemailer": "^9.0.1",
-    "sib-api-v3-sdk": "^8.5.0"
+    "nodemailer": "^9.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

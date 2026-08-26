@@ -346,8 +346,10 @@ const runVectorSearch = async (chunksCollection, embedding, action = "generate")
     }
   }
 
-  if (lastError) throw lastError;
-  return { chunks: [], indexName: indexNames[0] || "none" };
+  if (lastError) {
+    logWarn(action, "All vector search indexes failed or unsupported, proceeding to structure fallback.", `error="${lastError.message}"`);
+  }
+  return { chunks: [], indexName: "none" };
 };
 
 const formatToc = (toc, limit = 22) =>
@@ -592,24 +594,28 @@ const rewriteRetrievalQuery = (project, evalResult) => {
 
 const executeRetrievalPass = async (db, project, queryText, action = "generate", passNumber = 1) => {
   logStep(action, `Retrieval pass ${passNumber} started.`, `queryChars=${queryText.length}`);
-  const embedding = await generateQueryEmbedding(queryText, `${action}-pass${passNumber}`);
-  const chunksCollection = db.collection("pfe_chunks");
-  const { chunks, indexName } = await runVectorSearch(chunksCollection, embedding, `${action}-pass${passNumber}`);
+  try {
+    const embedding = await generateQueryEmbedding(queryText, `${action}-pass${passNumber}`);
+    const chunksCollection = db.collection("pfe_chunks");
+    const { chunks, indexName } = await runVectorSearch(chunksCollection, embedding, `${action}-pass${passNumber}`);
 
-  if (!chunks.length) {
-    logStep(action, `Pass ${passNumber}: No chunks found via Vector Search. Using structure fallback.`);
-    const fallbackContext = await getStructureFallbackContext(db, queryText, `${action}-pass${passNumber}`);
-    return { context: fallbackContext, chunks: [], source: "fallback" };
+    if (chunks && chunks.length > 0) {
+      const documentIds = [...new Set(chunks.map((chunk) => chunk.document_id).filter(Boolean))];
+      const [documents, structures] = await Promise.all([
+        db.collection("pfe_documents").find({ document_id: { $in: documentIds } }).toArray(),
+        db.collection("pfe_structures").find({ document_id: { $in: documentIds } }).toArray(),
+      ]);
+
+      const { context, topDocuments } = buildContextFromResults(chunks, documents, structures);
+      return { context, chunks, topDocuments, source: `vector (${indexName})` };
+    }
+  } catch (error) {
+    logWarn(action, `Vector/embedding retrieval failed in pass ${passNumber}. Falling back to structure token search.`, `reason="${error.message}"`);
   }
 
-  const documentIds = [...new Set(chunks.map((chunk) => chunk.document_id).filter(Boolean))];
-  const [documents, structures] = await Promise.all([
-    db.collection("pfe_documents").find({ document_id: { $in: documentIds } }).toArray(),
-    db.collection("pfe_structures").find({ document_id: { $in: documentIds } }).toArray(),
-  ]);
-
-  const { context, topDocuments } = buildContextFromResults(chunks, documents, structures);
-  return { context, chunks, topDocuments, source: `vector (${indexName})` };
+  logStep(action, `Pass ${passNumber}: Using structure fallback.`);
+  const fallbackContext = await getStructureFallbackContext(db, queryText, `${action}-pass${passNumber}`);
+  return { context: fallbackContext, chunks: [], source: "fallback" };
 };
 
 /**

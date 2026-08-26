@@ -227,6 +227,41 @@ const formatRetrievedChunks = (chunks = []) => {
     .join("\n\n");
 };
 
+const getSectionChunkFallback = async (chunksCollection, project, section, action = "generate", limit = 4) => {
+  try {
+    const sectionTitle = cleanText(section?.title || "", 150);
+    const tokens = getSearchTokens(sectionTitle).slice(0, 5);
+    if (!tokens.length) return [];
+
+    const regexArray = tokens.map((token) => new RegExp(token, "i"));
+    const chunks = await chunksCollection
+      .find({
+        $or: [
+          { section: { $in: regexArray } },
+          { content: { $in: regexArray } },
+        ],
+      })
+      .project({
+        _id: 0,
+        chunk_id: 1,
+        document_id: 1,
+        content: 1,
+        section: 1,
+      })
+      .limit(limit)
+      .toArray();
+
+    if (chunks.length > 0) {
+      logStep(action, `Keyword chunk fallback retrieved ${chunks.length} chunks.`);
+      return chunks.map((c) => ({ ...c, score: 0.5 }));
+    }
+    return [];
+  } catch (err) {
+    logWarn(action, "Keyword chunk fallback failed.", err.message);
+    return [];
+  }
+};
+
 /**
  * Section-Level Self-Correcting RAG (CRAG) Pipeline
  */
@@ -251,8 +286,18 @@ const getSectionRagContext = async (project, section, action = "generate", optio
     // --- PASS 1 ---
     const initialQuery = buildSectionRetrievalQuery(project, section);
     logStep(action, "Pass 1 query built.", `preview="${cleanText(initialQuery, 250)}"`);
-    const embedding1 = await generateQueryEmbedding(initialQuery, `${action}-pass1`);
-    const chunks1 = await runVectorSearch(chunksCollection, embedding1, `${action}-pass1`, 4);
+    let chunks1 = [];
+    try {
+      const embedding1 = await generateQueryEmbedding(initialQuery, `${action}-pass1`);
+      chunks1 = await runVectorSearch(chunksCollection, embedding1, `${action}-pass1`, 4);
+    } catch (embErr) {
+      logWarn(action, `Pass 1 vector/embedding search failed (${embErr.message}).`);
+    }
+
+    if (!chunks1 || chunks1.length === 0) {
+      logStep(action, "Pass 1: No chunks from vector search. Using keyword chunk fallback.");
+      chunks1 = await getSectionChunkFallback(chunksCollection, project, section, `${action}-pass1`, 4);
+    }
 
     const eval1 = evaluateSectionContext(project, section, chunks1);
     trace.pass1 = eval1;

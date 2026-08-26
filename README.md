@@ -15,7 +15,7 @@ Express + MongoDB + Gemini AI backend for the SmartPFE platform.
 
 ```bash
 # 1. Clone & enter the project
-git clone https://github.com/your-username/PfeMentor-back.git
+git clone https://github.com/ahmedneffati/PFEGuidanceBack.git
 cd PfeMentor-back/SmartPfe-Backend
 
 # 2. Install dependencies

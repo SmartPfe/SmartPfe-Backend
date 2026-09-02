@@ -31,7 +31,9 @@ const allowedOrigins = Array.from(
     "http://127.0.0.1:3000",
     "http://198.244.151.244",
     "http://staget.tn",
-    "https://staget.tn"
+    "https://staget.tn",
+    "https://pfeguide.tn",
+    "http://pfeguide.tn"
   ])
 );
 

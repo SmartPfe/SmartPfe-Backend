@@ -32,6 +32,7 @@ const {
 } = require("../services/reportStructureService");
 const {
   generateChapter: generateReportChapterService,
+  generateChapterStream: generateReportChapterStreamService,
   applyChapterAction: applyReportChapterActionService,
   generateCompleteReport: generateCompleteReportService,
   saveFinalReport: saveFinalReportService,
@@ -563,6 +564,30 @@ const generateReportChapter = async (req, res) => {
   }
 };
 
+// @desc    Generate one report chapter using AI with SSE Streaming
+// @route   POST /api/ai/report-studio/chapter/generate-stream
+// @access  Private
+const generateReportChapterStream = async (req, res) => {
+  try {
+    const { sectionId, detailLevel = "standard", reportChapters = [] } = req.body;
+    if (!sectionId) {
+      return res.status(400).json({ message: "Section id is required." });
+    }
+
+    const project = await Project.findOne({ user: req.user._id });
+    if (!project) {
+      return res.status(404).json({ message: "Project not found for this user." });
+    }
+
+    await generateReportChapterStreamService(project, sectionId, detailLevel, reportChapters, res, req);
+  } catch (error) {
+    console.error("[ai] generate report chapter stream error:", error.message);
+    if (!res.headersSent) {
+      res.status(500).json({ message: error.message || "AI streaming chapter generation failed." });
+    }
+  }
+};
+
 // @desc    Apply an AI writing action to one report chapter
 // @route   POST /api/ai/report-studio/chapter/action
 // @access  Private
@@ -1030,6 +1055,7 @@ module.exports = {
   refineReportStructure,
   translateReportStructure,
   generateReportChapter,
+  generateReportChapterStream,
   applyReportChapterAction,
   generateCompleteReport,
   generateUmlPreparation,

@@ -2,6 +2,7 @@ const path = require("path");
 const { spawn } = require("child_process");
 const mongoose = require("mongoose");
 const { getProjectContext } = require("./geminiService");
+const { generateQueryEmbedding: generateNodeQueryEmbedding } = require("./embeddingService");
 
 const EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2";
 const PYTHON_SCRIPT_PATH = path.join(__dirname, "ragEmbeddingQuery.py");
@@ -39,48 +40,54 @@ const logWarn = (action, step, details = "") => {
 };
 
 /**
- * Generate 384-dimensional query embedding via python sentence-transformers
+ * Generate 384-dimensional query embedding via pure Node.js (@xenova/transformers)
+ * with graceful fallback to Python if needed.
  */
 const generateQueryEmbedding = async (queryText, action = "generate") => {
-  const start = Date.now();
-  return new Promise((resolve, reject) => {
-    const pythonProcess = spawn("python", [PYTHON_SCRIPT_PATH], {
-      windowsHide: true,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+  try {
+    return await generateNodeQueryEmbedding(queryText, action);
+  } catch (nodeErr) {
+    console.warn(`[report-studio-rag][${action}] Node embedding failed (${nodeErr.message}), trying Python fallback...`);
+    const start = Date.now();
+    return new Promise((resolve, reject) => {
+      const pythonProcess = spawn("python", [PYTHON_SCRIPT_PATH], {
+        windowsHide: true,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
 
-    let output = "";
-    let errorOutput = "";
+      let output = "";
+      let errorOutput = "";
 
-    pythonProcess.stdout.on("data", (data) => {
-      output += data.toString("utf-8");
-    });
+      pythonProcess.stdout.on("data", (data) => {
+        output += data.toString("utf-8");
+      });
 
-    pythonProcess.stderr.on("data", (data) => {
-      errorOutput += data.toString("utf-8");
-    });
+      pythonProcess.stderr.on("data", (data) => {
+        errorOutput += data.toString("utf-8");
+      });
 
-    pythonProcess.on("close", (code) => {
-      if (code !== 0) {
-        return reject(new Error(`Embedding process failed (code ${code}): ${errorOutput || "Unknown error"}`));
-      }
-
-      try {
-        const parsed = JSON.parse(output.trim());
-        if (!parsed.embedding || !Array.isArray(parsed.embedding)) {
-          return reject(new Error("Python script did not return a valid embedding array."));
+      pythonProcess.on("close", (code) => {
+        if (code !== 0) {
+          return reject(new Error(`Embedding process failed (code ${code}): ${errorOutput || "Unknown error"}`));
         }
-        logStep(action, "Embedding generation completed.", `dimension=${parsed.embedding.length} durationMs=${Date.now() - start}`);
-        resolve(parsed.embedding);
-      } catch (e) {
-        reject(new Error(`Failed to parse embedding output: ${output.slice(0, 300)}`));
-      }
-    });
 
-    pythonProcess.on("error", (err) => reject(err));
-    pythonProcess.stdin.write(JSON.stringify({ text: queryText, query: queryText }));
-    pythonProcess.stdin.end();
-  });
+        try {
+          const parsed = JSON.parse(output.trim());
+          if (!parsed.embedding || !Array.isArray(parsed.embedding)) {
+            return reject(new Error("Python script did not return a valid embedding array."));
+          }
+          logStep(action, "Embedding generation completed via Python fallback.", `dimension=${parsed.embedding.length} durationMs=${Date.now() - start}`);
+          resolve(parsed.embedding);
+        } catch (e) {
+          reject(new Error(`Failed to parse embedding output: ${output.slice(0, 300)}`));
+        }
+      });
+
+      pythonProcess.on("error", (err) => reject(err));
+      pythonProcess.stdin.write(JSON.stringify({ text: queryText, query: queryText }));
+      pythonProcess.stdin.end();
+    });
+  }
 };
 
 /**

@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 const Project = require("../models/Project");
-const { callGemini } = require("./geminiService");
+const { callGemini, streamGemini } = require("./geminiService");
 const {
   buildChapterGenerationPrompt,
   buildChapterActionPrompt,
@@ -285,10 +285,84 @@ const saveFinalReport = async (userId, projectId, finalReport) => {
   return project.finalReport;
 };
 
+const generateChapterStream = async (project, sectionId, detailLevel = "standard", currentChapters = [], res, req) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  if (typeof res.flushHeaders === "function") {
+    res.flushHeaders();
+  }
+
+  const sendEvent = (event, data) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  const heartbeat = setInterval(() => {
+    res.write(": keepalive\n\n");
+  }, 15000);
+
+  if (req) {
+    req.on("close", () => {
+      clearInterval(heartbeat);
+    });
+  }
+
+  try {
+    const section = findSection(project.reportStructure || [], sectionId);
+    if (!section) throw new Error("Report structure section not found.");
+    const level = VALID_DETAIL_LEVELS.has(detailLevel) ? detailLevel : "standard";
+
+    sendEvent("status", { step: "rag", message: `Searching thesis literature for "${section.title}"...` });
+    const ragContext = await getSectionRagContext(project, section, "generate");
+
+    sendEvent("status", {
+      step: "synthesis",
+      message: "Synthesizing section content with Gemini...",
+      ragInjected: Boolean(ragContext),
+    });
+
+    const prompt = buildChapterGenerationPrompt(project, section, level, currentChapters, ragContext);
+
+    let accumulated = "";
+    await streamGemini(prompt, null, (chunk) => {
+      accumulated += chunk;
+      sendEvent("chunk", { text: chunk });
+    }, { tier: "reasoning" });
+
+    let payload;
+    try {
+      payload = parseAiPayload(accumulated, "chapter");
+    } catch (parseErr) {
+      payload = {
+        contentMarkdown: accumulated,
+        contentHtml: markdownToHtml(accumulated),
+      };
+    }
+
+    const normalized = normalizeChapter({
+      ...payload,
+      sectionId,
+      title: section.title,
+      sourceFingerprint: getSourceFingerprint(project),
+      language: getProjectLanguage(project),
+    });
+
+    sendEvent("done", { chapter: normalized });
+  } catch (err) {
+    console.error("[report-studio][stream] Error:", err.message);
+    sendEvent("error", { message: err.message || "Streaming chapter generation failed." });
+  } finally {
+    clearInterval(heartbeat);
+    res.end();
+  }
+};
+
 module.exports = {
   getReportChapters,
   saveReportChapters,
   generateChapter,
+  generateChapterStream,
   applyChapterAction,
   generateCompleteReport,
   saveFinalReport,

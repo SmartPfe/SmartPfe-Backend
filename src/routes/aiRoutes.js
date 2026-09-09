@@ -24,6 +24,7 @@ const {
   refineReportStructure,
   translateReportStructure,
   generateReportChapter,
+  generateReportChapterStream,
   applyReportChapterAction,
   generateCompleteReport,
   generateUmlPreparation,
@@ -79,6 +80,7 @@ router.post("/report-structure/generate", traceReportStructureRequest, protect, 
 router.post("/report-structure/refine", traceReportStructureRequest, protect, refineReportStructure);
 router.post("/report-structure/translate", protect, translateReportStructure);
 router.post("/report-studio/chapter/generate", protect, generateReportChapter);
+router.post("/report-studio/chapter/generate-stream", protect, generateReportChapterStream);
 router.post("/report-studio/chapter/action", protect, applyReportChapterAction);
 router.post("/report-studio/final/generate", protect, generateCompleteReport);
 router.post("/uml-preparation/generate", protect, generateUmlPreparation);

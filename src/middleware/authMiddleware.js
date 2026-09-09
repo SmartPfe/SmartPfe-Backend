@@ -1,6 +1,18 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
+const getJwtSecret = () => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("FATAL: JWT_SECRET environment variable is not configured in production!");
+    }
+    console.warn("[security] WARNING: JWT_SECRET is not set. Using dev fallback. Configure JWT_SECRET in .env for production.");
+    return "default_super_secret_key";
+  }
+  return secret;
+};
+
 const protect = async (req, res, next) => {
   let token;
 
@@ -13,23 +25,24 @@ const protect = async (req, res, next) => {
       token = req.headers.authorization.split(" ")[1];
 
       // Verify token
-      const decoded = jwt.verify(
-        token,
-        process.env.JWT_SECRET || "default_super_secret_key"
-      );
+      const decoded = jwt.verify(token, getJwtSecret());
 
       // Get user from the token
       req.user = await User.findById(decoded.id).select("-password");
 
-      next();
+      if (!req.user) {
+        return res.status(401).json({ message: "Not authorized, user not found" });
+      }
+
+      return next();
     } catch (error) {
-      console.error(error);
-      res.status(401).json({ message: "Not authorized, token failed" });
+      console.error("[auth] Token verification failed:", error.message);
+      return res.status(401).json({ message: "Not authorized, token failed" });
     }
   }
 
   if (!token) {
-    res.status(401).json({ message: "Not authorized, no token" });
+    return res.status(401).json({ message: "Not authorized, no token" });
   }
 };
 

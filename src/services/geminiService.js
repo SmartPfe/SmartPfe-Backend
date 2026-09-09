@@ -1,3 +1,5 @@
+const { createTrace, flushTraces } = require("./observabilityService");
+
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
 // Semantic Model Tiers
@@ -5,25 +7,25 @@ const MODEL_TIERS = {
   // Tier 1: Complex reasoning, UML diagram modeling, RAG chapter synthesis, complete thesis
   reasoning: [
     "gemini-3.7-flash",
-    "gemini-2.5-flash",
-    "gemini-3.5-flash",
     "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-2.5-flash",
   ],
 
   // Tier 2: Standard generation (Problem statement, requirements, backlog, pitch, slides)
   default: [
-    "gemini-2.5-flash",
+    "gemini-3.6-flash",
     "gemini-3.5-flash",
     "gemini-3.7-flash",
-    "gemini-2.5-flash-lite",
+    "gemini-3.5-flash-lite",
   ],
 
   // Tier 3: Sub-second micro-actions (Floating dock, in-place translations, simplify/expand)
   fast: [
-    "gemini-2.5-flash-lite",
     "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
-    "gemini-2.5-flash",
+    "gemini-3.6-flash",
+    "gemini-2.5-flash-lite",
   ],
 };
 
@@ -199,10 +201,18 @@ const callGeminiModel = async ({ model, systemInstruction, contents, retryCount 
     throw new Error(`Gemini model ${model} returned an empty response.`);
   }
 
-  return text;
+  const usage = data.usageMetadata
+    ? {
+        promptTokens: data.usageMetadata.promptTokenCount,
+        completionTokens: data.usageMetadata.candidatesTokenCount,
+        totalTokens: data.usageMetadata.totalTokenCount,
+      }
+    : undefined;
+
+  return { text, usage, model };
 };
 
-// --- Multi-Model Fallback Executor ---
+// --- Multi-Model Fallback Executor with Langfuse Tracing ---
 
 const callGeminiMessages = async (messages, options = {}) => {
   const tier = options.tier && MODEL_TIERS[options.tier] ? options.tier : "default";
@@ -234,10 +244,37 @@ const callGeminiMessages = async (messages, options = {}) => {
     }
   }
 
+  const trace = options.trace || createTrace({
+    name: options.actionName || `smartpfe-${tier}-generation`,
+    userId: options.userId,
+    metadata: {
+      tier,
+      candidateModels: models,
+      ...(options.metadata || {}),
+    },
+    tags: [tier, "gemini", ...(options.tags || [])],
+  });
+
+  const generation = trace.generation({
+    name: `gemini-${tier}-call`,
+    input: messages,
+    modelParameters: {
+      temperature: options.temperature !== undefined ? options.temperature : 0.3,
+      maxOutputTokens: options.max_tokens || options.maxOutputTokens || 8192,
+    },
+  });
+
   const failures = [];
   for (const model of models) {
     try {
-      return await callGeminiModel({ model, systemInstruction, contents, retryCount: 0, options });
+      const result = await callGeminiModel({ model, systemInstruction, contents, retryCount: 0, options });
+      generation.end({
+        output: result.text,
+        model: result.model,
+        usage: result.usage,
+      });
+      flushTraces();
+      return result.text;
     } catch (error) {
       failures.push(`${model}: ${error.message}`);
       if (models.length > 1) {
@@ -245,6 +282,12 @@ const callGeminiMessages = async (messages, options = {}) => {
       }
     }
   }
+
+  generation.end({
+    level: "ERROR",
+    statusMessage: failures.join(" | "),
+  });
+  flushTraces();
 
   console.error("[gemini] All fallback models failed:", failures.join(" | "));
   throw new Error("All AI models are currently unavailable. Please wait a moment and try again.");
@@ -301,10 +344,135 @@ const callAI = async (type, project, currentText = null, options = {}) => {
   return callGemini(systemPrompt, userPrompt, { tier, ...options });
 };
 
+const streamGeminiModel = async ({ model, systemInstruction, contents, onChunk = () => {}, options = {} }) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is not configured on the server.");
+  }
+
+  const requestBody = {
+    contents,
+    ...(systemInstruction ? { systemInstruction } : {}),
+    generationConfig: {
+      temperature: options.temperature !== undefined ? options.temperature : 0.3,
+      maxOutputTokens: options.max_tokens || options.maxOutputTokens || 8192,
+      ...(options.responseMimeType ? { responseMimeType: options.responseMimeType } : {}),
+      ...(options.responseSchema ? { responseSchema: options.responseSchema } : {}),
+    },
+  };
+
+  const response = await fetch(
+    `${GEMINI_BASE_URL}/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+      signal: options.signal,
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[gemini-stream] Model ${model} stream error ${response.status}:`, errorText.slice(0, 500));
+    throw new Error(`Gemini stream model ${model} failed with status ${response.status}.`);
+  }
+
+  let fullText = "";
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop();
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("data: ")) {
+        const jsonStr = trimmed.slice(6).trim();
+        if (!jsonStr || jsonStr === "[DONE]") continue;
+        try {
+          const parsed = JSON.parse(jsonStr);
+          const chunkText = getGeminiText(parsed);
+          if (chunkText) {
+            fullText += chunkText;
+            onChunk(chunkText);
+          }
+        } catch (_) {
+          // ignore unparsable partial JSON chunk
+        }
+      }
+    }
+  }
+
+  return fullText;
+};
+
+const streamGeminiMessages = async (messages, onChunk = () => {}, options = {}) => {
+  const tier = options.tier && MODEL_TIERS[options.tier] ? options.tier : "default";
+  const models = Array.isArray(options.models) && options.models.length
+    ? options.models
+    : MODEL_TIERS[tier];
+
+  const systemMessages = messages.filter((m) => m.role === "system");
+  const nonSystemMessages = messages.filter((m) => m.role !== "system");
+
+  const systemInstruction = systemMessages.length > 0
+    ? { parts: [{ text: systemMessages.map((m) => m.content).join("\n\n") }] }
+    : null;
+
+  let contents = nonSystemMessages.map((m) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
+
+  if (contents.length === 0) {
+    if (systemInstruction) {
+      contents = [{ role: "user", parts: [{ text: "Please generate the requested response according to the instructions." }] }];
+    } else {
+      throw new Error("No prompt content provided to Gemini.");
+    }
+  }
+
+  const failures = [];
+  for (const model of models) {
+    try {
+      return await streamGeminiModel({ model, systemInstruction, contents, onChunk, options });
+    } catch (error) {
+      failures.push(`${model}: ${error.message}`);
+      if (models.length > 1) {
+        console.warn(`[gemini-stream] Falling back after ${model} failed: ${error.message}`);
+      }
+    }
+  }
+
+  console.error("[gemini-stream] All fallback models failed:", failures.join(" | "));
+  throw new Error("All AI models are currently unavailable for streaming. Please try again.");
+};
+
+const streamGemini = async (systemPrompt, userPrompt = null, onChunk = () => {}, options = {}) => {
+  if (userPrompt) {
+    const messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ];
+    return streamGeminiMessages(messages, onChunk, options);
+  }
+
+  const messages = [{ role: "user", content: systemPrompt }];
+  return streamGeminiMessages(messages, onChunk, options);
+};
+
 module.exports = {
   callAI,
   callGemini,
   callGeminiMessages,
+  streamGemini,
+  streamGeminiMessages,
   callOpenRouter: callGemini,
   callOpenRouterMessages: callGeminiMessages,
   formatContextString,

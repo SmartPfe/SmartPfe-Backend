@@ -3,6 +3,7 @@ const fs = require("fs");
 const { spawn } = require("child_process");
 const mongoose = require("mongoose");
 const { getProjectContext } = require("./geminiService");
+const { generateQueryEmbedding: generateNodeQueryEmbedding } = require("./embeddingService");
 
 const EMBEDDING_MODEL_NAME =
   process.env.RAG_EMBEDDING_MODEL ||
@@ -212,65 +213,71 @@ const resolvePythonCommand = () => {
   return candidates.find((candidate) => fs.existsSync(candidate)) || process.env.PYTHON || "python";
 };
 
-const generateQueryEmbedding = (text, action = "generate") =>
-  new Promise((resolve, reject) => {
-    const pythonCommand = resolvePythonCommand();
-    const timeoutMs = Number(process.env.RAG_EMBEDDING_TIMEOUT_MS || 120000);
-    const startTime = Date.now();
-    logStep(action, "Embedding generation started.", `model="${EMBEDDING_MODEL_NAME}" python="${pythonCommand}"`);
-    const child = spawn(pythonCommand, [PYTHON_EMBEDDING_SCRIPT], {
-      cwd: path.resolve(__dirname, "..", ".."),
-      stdio: ["pipe", "pipe", "pipe"],
-      windowsHide: true,
-    });
+const generateQueryEmbedding = async (text, action = "generate") => {
+  try {
+    return await generateNodeQueryEmbedding(text, action);
+  } catch (nodeErr) {
+    console.warn(`${RAG_LOG_PREFIX}[${action}] Node embedding failed (${nodeErr.message}), falling back to Python...`);
+    return new Promise((resolve, reject) => {
+      const pythonCommand = resolvePythonCommand();
+      const timeoutMs = Number(process.env.RAG_EMBEDDING_TIMEOUT_MS || 120000);
+      const startTime = Date.now();
+      logStep(action, "Embedding generation started via Python fallback.", `model="${EMBEDDING_MODEL_NAME}" python="${pythonCommand}"`);
+      const child = spawn(pythonCommand, [PYTHON_EMBEDDING_SCRIPT], {
+        cwd: path.resolve(__dirname, "..", ".."),
+        stdio: ["pipe", "pipe", "pipe"],
+        windowsHide: true,
+      });
 
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
+      let stdout = "";
+      let stderr = "";
+      let settled = false;
 
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      child.kill();
-      reject(new Error(`Embedding generation timed out after ${timeoutMs}ms.`));
-    }, timeoutMs);
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        child.kill();
+        reject(new Error(`Embedding generation timed out after ${timeoutMs}ms.`));
+      }, timeoutMs);
 
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-    child.on("error", (error) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      reject(error);
-    });
-    child.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-
-      if (code !== 0) {
-        reject(new Error(cleanText(stderr || stdout || `Embedding process exited with code ${code}.`, 500)));
-        return;
-      }
-
-      try {
-        const payload = parseJsonFromStdout(stdout);
-        if (!Array.isArray(payload.embedding) || payload.embedding.length !== EMBEDDING_DIMENSIONS) {
-          throw new Error(`Expected ${EMBEDDING_DIMENSIONS} embedding values, got ${payload.dimension || "unknown"}.`);
-        }
-        logStep(action, "Embedding generation completed.", `dimension=${payload.embedding.length} durationMs=${Date.now() - startTime}`);
-        resolve(payload.embedding);
-      } catch (error) {
+      child.stdout.on("data", (chunk) => {
+        stdout += chunk.toString();
+      });
+      child.stderr.on("data", (chunk) => {
+        stderr += chunk.toString();
+      });
+      child.on("error", (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
         reject(error);
-      }
-    });
+      });
+      child.on("close", (code) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
 
-    child.stdin.end(JSON.stringify({ text, model: EMBEDDING_MODEL_NAME }));
-  });
+        if (code !== 0) {
+          reject(new Error(cleanText(stderr || stdout || `Embedding process exited with code ${code}.`, 500)));
+          return;
+        }
+
+        try {
+          const payload = parseJsonFromStdout(stdout);
+          if (!Array.isArray(payload.embedding) || payload.embedding.length !== EMBEDDING_DIMENSIONS) {
+            throw new Error(`Expected ${EMBEDDING_DIMENSIONS} embedding values, got ${payload.dimension || "unknown"}.`);
+          }
+          logStep(action, "Embedding generation completed.", `dimension=${payload.embedding.length} durationMs=${Date.now() - startTime}`);
+          resolve(payload.embedding);
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      child.stdin.end(JSON.stringify({ text, model: EMBEDDING_MODEL_NAME }));
+    });
+  }
+};
 
 const getSearchIndexNames = async (chunksCollection) => {
   const configured = process.env.RAG_VECTOR_INDEX_NAME;

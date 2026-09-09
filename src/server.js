@@ -19,6 +19,7 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const aiRoutes = require("./routes/aiRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const contactRoutes = require("./routes/contactRoutes");
+const { observabilityContextMiddleware } = require("./services/observabilityService");
 
 const configuredOrigins = process.env.FRONTEND_URL
   ? process.env.FRONTEND_URL.split(",").map((origin) => origin.trim()).filter(Boolean)
@@ -47,7 +48,9 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
+app.use(observabilityContextMiddleware);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/projects", projectRoutes);
@@ -55,6 +58,16 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/contact", contactRoutes);
+
+// Global Error Handler (ensure errors always return JSON, not HTML)
+app.use((err, req, res, next) => {
+  if (err.type === "entity.too.large") {
+    console.error("[server] PayloadTooLargeError:", err.message);
+    return res.status(413).json({ message: "Request payload too large. Please shorten or optimize your content." });
+  }
+  console.error("[server] Unhandled Error:", err.message);
+  res.status(err.status || 500).json({ message: err.message || "Internal server error" });
+});
 
 app.get("/", (req, res) => {
   res.send("🚀 SmartPFE Backend Running");

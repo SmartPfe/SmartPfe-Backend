@@ -58,6 +58,13 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/contact", contactRoutes);
+app.get("/api/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    service: "pfeguidance-back",
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // Global Error Handler (ensure errors always return JSON, not HTML)
 app.use((err, req, res, next) => {
@@ -70,11 +77,11 @@ app.use((err, req, res, next) => {
 });
 
 app.get("/", (req, res) => {
-  res.send("🚀 SmartPFE Backend Running");
+  res.send("ðŸš€ SmartPFE Backend Running");
 });
 
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
+  console.log(`âœ… Server running on port ${PORT}`);
 });

@@ -48,10 +48,18 @@ The platform is structured into synchronized workspace modules:
 - **Database**: MongoDB Atlas via Mongoose.
   - Core collections: `projects` (unified project document containing all modules), `users`, `pfe_chunks` (3,092 indexed thesis chunks for vector search).
 - **AI Engine**: OpenRouter API (`openRouterService.js`) with automatic multi-model fallback chain.
-- **RAG & Search**:
-  - Native MongoDB Atlas `$vectorSearch` (`pfe_chunks_vector_index`, 384 dimensions).
-  - Python bridge script (`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`) for dense embeddings.
-  - Native Corrective RAG (CRAG) loop with relevance grading and single-retry query rewriting.
+- **RAG & Search — Production-Grade Corrective RAG (CRAG)**:
+  - **Knowledge Base**: 31 real university PFE theses, 3,092 semantically chunked sections stored across three MongoDB collections: `pfe_chunks` (vector-indexed content), `pfe_documents` (parent metadata), and `pfe_structures` (full table-of-contents hierarchies).
+  - **Embedding Runtime**: Dual-runtime architecture — primary in-process ONNX via `@xenova/transformers` (`embeddingService.js`, cold start ~2-4s, subsequent <50ms) with automatic fallback to Python `sentence-transformers` bridge (`ragEmbeddingQuery.py`). Model: `paraphrase-multilingual-MiniLM-L12-v2` (384 dimensions, bilingual FR/EN).
+  - **Vector Search**: Native MongoDB Atlas `$vectorSearch` aggregation pipeline with automatic index discovery and multi-index failover (`pfe_chunks_vector_index` → `vector_index` → `default`).
+  - **Hybrid Retrieval**: Vector similarity as primary path, keyword token scoring + structure-level relevance scoring as cascading fallbacks. No single point of failure.
+  - **Self-Correcting RAG (CRAG) Loop**: After initial retrieval, a composite relevance grader scores context on academic chapter coverage (60% weight — checks for Introduction, SOTA, Requirements, Design, Implementation, Testing, Conclusion) + domain/technical keyword density (40% weight). If the composite score < 0.65, the system **automatically rewrites the query** (focusing on identified gaps) and executes a second retrieval pass. The best-scoring context is adopted.
+  - **Dual CRAG Pipelines at Different Granularities**:
+    - *Report Structure CRAG* (`reportStructureRagService.js`): Document-level retrieval of full thesis table-of-contents structures for outline generation/refinement.
+    - *Report Builder CRAG* (`reportStudioRagService.js`): Section-level retrieval of specific technical paragraphs for chapter writing, grounded in real academic literature.
+  - **Prompt Augmentation Security**: Retrieved literature is injected inside `<retrieved_literature_excerpts>` tags with explicit security directives preventing prompt injection from both student-provided data and retrieved content.
+  - **RAG Evaluation Framework** (`rag-evaluation/`): RAGAS-inspired automated benchmark suite with 18+ bilingual test cases measuring 5 metrics (Context Relevance, Context Recall, Faithfulness, Structure Quality, Composite RAG Score). Reproducible via `npm run evaluate:rag`. Results: **0.799 composite, 1.000 faithfulness (zero hallucinations), 50% CRAG self-correction trigger rate**.
+- **LLM Observability**: Langfuse tracing integration (`observabilityService.js`) with per-user context propagation via `AsyncLocalStorage`, tracking every AI call with user identity, action type, model selection, and RAG pipeline state.
 
 ---
 

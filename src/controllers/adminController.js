@@ -71,7 +71,7 @@ const getDashboardStats = async (req, res) => {
         .select("basics.domain basics.title user createdAt"),
     ]);
 
-    const months = getLastMonths(6);
+    const months = getLastMonths(12);
     const studentGrowth = months.map((month) => ({
       label: month.label,
       value: students.filter((user) => getMonthKey(user.createdAt) === month.key).length,
@@ -89,22 +89,32 @@ const getDashboardStats = async (req, res) => {
     const creditsSpent = transactions.reduce((sum, transaction) => sum + (transaction.kind === "usage" ? Number(transaction.chargedCost) || 0 : 0), 0);
     const purchasedFulfilled = transactions.reduce((sum, transaction) => sum + Math.max(0, transaction.kind === "admin_adjustment" ? Number(transaction.purchasedDelta) || 0 : 0), 0);
     const actionDemand = toChartItems(countBy(transactions.filter((transaction) => transaction.kind === "usage"), (transaction) => transaction.actionKey || "Other"), 5);
-    const activityDays = Array.from({ length: 14 }, (_, index) => {
-      const date = new Date();
-      date.setHours(0, 0, 0, 0);
-      date.setDate(date.getDate() - (13 - index));
-      return { key: date.toISOString().slice(0, 10), label: date.toLocaleDateString("en", { month: "short", day: "numeric" }), spent: 0, fulfilled: 0 };
+    const now = new Date();
+    const activityDays = Array.from({ length: 30 }, (_, index) => {
+      const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (29 - index)));
+      const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+      const label = date.toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" });
+      return { key, label, spent: 0, fulfilled: 0 };
     });
     const activityByDay = new Map(activityDays.map((day) => [day.key, day]));
     transactions.forEach((transaction) => {
-      const day = activityByDay.get(new Date(transaction.createdAt).toISOString().slice(0, 10));
+      const txDate = new Date(transaction.createdAt);
+      const key = `${txDate.getUTCFullYear()}-${String(txDate.getUTCMonth() + 1).padStart(2, "0")}-${String(txDate.getUTCDate()).padStart(2, "0")}`;
+      const day = activityByDay.get(key);
       if (!day) return;
       if (transaction.kind === "usage") day.spent += Number(transaction.chargedCost) || 0;
       if (transaction.kind === "admin_adjustment") day.fulfilled += Math.max(0, Number(transaction.purchasedDelta) || 0);
     });
+    const creditMonthly = months.map((month) => {
+      const monthTransactions = transactions.filter((tx) => getMonthKey(tx.createdAt) === month.key);
+      const spent = monthTransactions.reduce((sum, tx) => sum + (tx.kind === 'usage' ? Number(tx.chargedCost) || 0 : 0), 0);
+      const fulfilled = monthTransactions.reduce((sum, tx) => sum + Math.max(0, tx.kind === 'admin_adjustment' ? Number(tx.purchasedDelta) || 0 : 0), 0);
+      return { key: month.key, label: month.label, spent, fulfilled };
+    });
+
     const recentFulfillments = transactions
       .filter((transaction) => transaction.kind === "admin_adjustment" && Number(transaction.purchasedDelta) > 0)
-      .slice(0, 5)
+      .slice(0, 8)
       .map((transaction) => transaction.toObject());
 
     res.status(200).json({
@@ -128,6 +138,7 @@ const getDashboardStats = async (req, res) => {
         domains,
         actionDemand,
         creditActivity: activityDays,
+        creditMonthly,
       },
       recentUsers: recentUsers.map((user) => ({
         ...user.toObject(),

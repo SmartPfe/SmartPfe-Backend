@@ -142,6 +142,13 @@ The platform is structured into synchronized workspace modules:
 - Preserve idempotency, refunds, policy-version checks, audit reasons, separate balance buckets, and fail-closed route coverage when extending the system.
 - Before production rollout, review the economy in Admin, confirm `enforce` mode, and smoke-test against the deployment's real MongoDB transaction/connection environment. Payments/top-up purchasing are not part of this implementation; only admin adjustments currently populate purchased credits.
 
+### Admin quality-of-life update
+
+- Admin accounts remain visible in the user directory but are wallet-ineligible: no wallet is returned, the UI shows “No wallet”, and wallet APIs reject administrator targets. Credit analytics are student-only.
+- Wallet fulfilment defaults to purchased. A positive purchased adjustment sends a reward-style Nodemailer confirmation email. Delivery failure is logged but never reverses settled credits; an idempotency replay does not send another email.
+- Users management has name/email search, role/onboarding filters, sortable columns, 10-row pagination, concise success feedback, and minute-accurate transaction timestamps.
+- The dashboard now prioritizes student readiness, growth, AI credit usage, paid fulfilments, top AI actions, domains, and recent activity rather than metadata-heavy charts.
+
 ---
 
 ## 💳 5. Credit Economy & Admin Refresh (Implemented September 2026)

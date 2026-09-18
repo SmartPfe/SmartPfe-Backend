@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const Project = require("../models/Project");
 const CreditWallet = require("../models/CreditWallet");
+const CreditTransaction = require("../models/CreditTransaction");
 
 function getLastMonths(count = 6) {
   const months = [];
@@ -40,43 +41,71 @@ function toChartItems(counts, limit = 6) {
 
 const getDashboardStats = async (req, res) => {
   try {
-    const [totalUsers, totalStudents, totalAdmins, totalProjects, completedOnboarding] = await Promise.all([
+    const studentFilter = { $or: [{ role: "etudiant" }, { role: { $exists: false } }] };
+    const [totalUsers, totalStudents, totalAdmins, totalProjects, completedOnboarding, students] = await Promise.all([
       User.countDocuments(),
-      User.countDocuments({ $or: [{ role: "etudiant" }, { role: { $exists: false } }] }),
+      User.countDocuments(studentFilter),
       User.countDocuments({ role: "admin" }),
       Project.countDocuments(),
-      User.countDocuments({ hasCompletedOnboarding: true }),
+      User.countDocuments({ ...studentFilter, hasCompletedOnboarding: true }),
+      User.find(studentFilter).select("_id role hasCompletedOnboarding createdAt"),
     ]);
 
-    const [allUsers, allProjects] = await Promise.all([
-      User.find().select("role hasCompletedOnboarding createdAt"),
-      Project.find().select("basics.domain technicalContext.methodology createdAt"),
+    const studentIds = students.map((student) => student._id);
+    const [allProjects, wallets, transactions, recentUsers, recentProjects] = await Promise.all([
+      Project.find().select("basics.domain createdAt"),
+      CreditWallet.find({ user: { $in: studentIds } }).lean(),
+      CreditTransaction.find({ user: { $in: studentIds }, status: "settled" })
+        .sort({ createdAt: -1 })
+        .limit(5000)
+        .populate("user", "fullName email")
+        .select("user kind actionKey chargedCost promotionalDelta purchasedDelta reason createdAt"),
+      User.find(studentFilter)
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select("fullName email role hasCompletedOnboarding createdAt"),
+      Project.find()
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .populate("user", "fullName email")
+        .select("basics.domain basics.title user createdAt"),
     ]);
 
     const months = getLastMonths(6);
-    const userGrowth = months.map((month) => ({
+    const studentGrowth = months.map((month) => ({
       label: month.label,
-      value: allUsers.filter((user) => getMonthKey(user.createdAt) === month.key).length,
+      value: students.filter((user) => getMonthKey(user.createdAt) === month.key).length,
     }));
     const projectGrowth = months.map((month) => ({
       label: month.label,
       value: allProjects.filter((project) => getMonthKey(project.createdAt) === month.key).length,
     }));
 
-    const domains = toChartItems(countBy(allProjects, (project) => project.basics?.domain));
-    const methodologies = toChartItems(countBy(allProjects, (project) => project.technicalContext?.methodology));
-    const complexities = toChartItems(countBy(allProjects, (project) => project.technicalContext?.complexity));
-
-    const recentUsers = await User.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .select("fullName email role hasCompletedOnboarding createdAt");
-
-    const recentProjects = await Project.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .populate("user", "fullName email")
-      .select("basics.domain basics.title basics.academicYear user createdAt");
+    const domains = toChartItems(countBy(allProjects, (project) => project.basics?.domain), 5);
+    const walletTotals = wallets.reduce((totals, wallet) => ({
+      promotional: totals.promotional + (Number(wallet.promotionalBalance) || 0),
+      purchased: totals.purchased + (Number(wallet.purchasedBalance) || 0),
+    }), { promotional: 0, purchased: 0 });
+    const creditsSpent = transactions.reduce((sum, transaction) => sum + (transaction.kind === "usage" ? Number(transaction.chargedCost) || 0 : 0), 0);
+    const purchasedFulfilled = transactions.reduce((sum, transaction) => sum + Math.max(0, transaction.kind === "admin_adjustment" ? Number(transaction.purchasedDelta) || 0 : 0), 0);
+    const actionDemand = toChartItems(countBy(transactions.filter((transaction) => transaction.kind === "usage"), (transaction) => transaction.actionKey || "Other"), 5);
+    const activityDays = Array.from({ length: 14 }, (_, index) => {
+      const date = new Date();
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() - (13 - index));
+      return { key: date.toISOString().slice(0, 10), label: date.toLocaleDateString("en", { month: "short", day: "numeric" }), spent: 0, fulfilled: 0 };
+    });
+    const activityByDay = new Map(activityDays.map((day) => [day.key, day]));
+    transactions.forEach((transaction) => {
+      const day = activityByDay.get(new Date(transaction.createdAt).toISOString().slice(0, 10));
+      if (!day) return;
+      if (transaction.kind === "usage") day.spent += Number(transaction.chargedCost) || 0;
+      if (transaction.kind === "admin_adjustment") day.fulfilled += Math.max(0, Number(transaction.purchasedDelta) || 0);
+    });
+    const recentFulfillments = transactions
+      .filter((transaction) => transaction.kind === "admin_adjustment" && Number(transaction.purchasedDelta) > 0)
+      .slice(0, 5)
+      .map((transaction) => transaction.toObject());
 
     res.status(200).json({
       totals: {
@@ -85,23 +114,27 @@ const getDashboardStats = async (req, res) => {
         admins: totalAdmins,
         projects: totalProjects,
         completedOnboarding,
+        creditsSpent,
+        purchasedFulfilled,
+        walletCredits: walletTotals.promotional + walletTotals.purchased,
       },
       charts: {
-        userGrowth,
+        studentGrowth,
         projectGrowth,
         onboardingStatus: [
           { label: "Completed", value: completedOnboarding },
-          { label: "Pending", value: Math.max(totalUsers - completedOnboarding, 0) },
+          { label: "Pending", value: Math.max(totalStudents - completedOnboarding, 0) },
         ],
-        complexities,
         domains,
-        methodologies,
+        actionDemand,
+        creditActivity: activityDays,
       },
       recentUsers: recentUsers.map((user) => ({
         ...user.toObject(),
         role: user.role || "etudiant",
       })),
       recentProjects,
+      recentFulfillments,
     });
   } catch (error) {
     console.error("[admin] getDashboardStats error:", error.message);
@@ -115,17 +148,20 @@ const getUsers = async (req, res) => {
       .sort({ createdAt: -1 })
       .select("fullName email role hasCompletedOnboarding authProvider avatar createdAt");
 
-    const wallets = await CreditWallet.find({ user: { $in: users.map((user) => user._id) } }).lean();
+    const studentIds = users.filter((user) => (user.role || "etudiant") !== "admin").map((user) => user._id);
+    const wallets = await CreditWallet.find({ user: { $in: studentIds } }).lean();
     const walletByUser = new Map(wallets.map((wallet) => [String(wallet.user), wallet]));
 
     res.status(200).json(users.map((user) => {
-      const wallet = walletByUser.get(String(user._id));
+      const isAdmin = (user.role || "etudiant") === "admin";
+      const wallet = isAdmin ? null : walletByUser.get(String(user._id));
       const promotional = Number(wallet?.promotionalBalance) || 0;
       const purchased = Number(wallet?.purchasedBalance) || 0;
       return {
         ...user.toObject(),
         role: user.role || "etudiant",
-        credits: { promotional, purchased, total: promotional + purchased },
+        walletEligible: !isAdmin,
+        ...(isAdmin ? {} : { credits: { promotional, purchased, total: promotional + purchased } }),
       };
     }));
   } catch (error) {

@@ -204,8 +204,50 @@ const sendContactMessageEmail = async ({ name, email, subject, message }) => {
   }
 };
 
+const sendPurchasedCreditsEmail = async ({ email, fullName, amount, balance }) => {
+  const transporter = createTransporter();
+  const safeName = escapeHtml(fullName || "there");
+  const safeAmount = Math.max(0, Math.trunc(Number(amount) || 0));
+  const safeBalance = Math.max(0, Math.trunc(Number(balance) || 0));
+
+  if (!transporter) {
+    console.info("[emailService] Email not configured. Dev fallback for purchased-credit confirmation:", { email, amount: safeAmount });
+    if (process.env.NODE_ENV !== "production") return { devFallback: true, sent: false };
+    throw new Error("Email service is not configured. Please set EMAIL_USER and EMAIL_PASS.");
+  }
+
+  await transporter.sendMail({
+    from: `"SmartPFE" <${getSenderAddress()}>`,
+    to: email,
+    subject: `${safeAmount} SmartPFE credits are ready for your project`,
+    html: `
+      <div style="margin:0;padding:32px 16px;background:#f7f8fc;font-family:Arial,sans-serif;color:#172033;">
+        <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e6e8ef;border-radius:20px;overflow:hidden;">
+          <div style="padding:28px 32px;background:linear-gradient(135deg,#5b4bdb,#8b5cf6);color:#ffffff;">
+            <div style="font-size:24px;font-weight:800;letter-spacing:-0.5px;">SmartPFE</div>
+            <div style="margin-top:8px;font-size:15px;opacity:.9;">Your project momentum just got a boost.</div>
+          </div>
+          <div style="padding:32px;">
+            <h1 style="margin:0 0 12px;font-size:23px;line-height:1.25;">Your credits are ready, ${safeName}.</h1>
+            <p style="margin:0;color:#526076;font-size:15px;line-height:1.6;">Your purchase has been confirmed and added to your SmartPFE account.</p>
+            <div style="margin:24px 0;padding:20px;border-radius:16px;background:#fff8df;border:1px solid #f6d36b;text-align:center;">
+              <div style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#80600d;">Credits added</div>
+              <div style="margin-top:6px;font-size:36px;font-weight:800;color:#352b08;">+${safeAmount}</div>
+              <div style="margin-top:6px;font-size:13px;color:#80600d;">Purchased balance: ${safeBalance} credits</div>
+            </div>
+            <p style="margin:0;color:#526076;font-size:14px;line-height:1.6;">You can now continue generating your report, presentation, pitch, and defense preparation materials from your workspace.</p>
+            <p style="margin:24px 0 0;color:#8a94a6;font-size:12px;line-height:1.5;">If you did not make this purchase, please contact the SmartPFE team.</p>
+          </div>
+        </div>
+      </div>`,
+  });
+
+  return { sent: true };
+};
+
 module.exports = {
   sendResetPasswordEmail,
   sendEmailVerificationCode,
   sendContactMessageEmail,
+  sendPurchasedCreditsEmail,
 };

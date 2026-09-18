@@ -258,6 +258,9 @@ const applyDailyRefill = async (user, settings) => {
 };
 
 const prepareWalletForUser = async (user) => {
+  if ((user?.role || "etudiant") === "admin") {
+    throw new CreditError("Administrator accounts do not have credit wallets.", "ADMIN_WALLET_DISABLED", 403);
+  }
   const settings = await getCreditSettings();
   await ensureWallet(user._id);
   await recoverExpiredCharges(user._id, settings.timezone);
@@ -797,7 +800,7 @@ const adjustUserCredits = async ({ userId, amount, bucket, actor, reason, refere
   ) {
     throw new CreditError("This idempotency key belongs to a different adjustment.", "IDEMPOTENCY_KEY_CONFLICT", 409);
   }
-  if (transaction.status === "settled") return transaction;
+  if (transaction.status === "settled") return { transaction, idempotentReplay: true };
   const field = bucket === "purchased" ? "purchasedBalance" : "promotionalBalance";
   const filter = { user: userId, appliedAdjustmentRequestIds: { $ne: normalizedRequestId } };
   if (numericAmount < 0) filter[field] = { $gte: Math.abs(numericAmount) };
@@ -820,7 +823,7 @@ const adjustUserCredits = async ({ userId, amount, bucket, actor, reason, refere
   transaction.settledAt = new Date();
   transaction.balanceAfter = walletPayload(wallet);
   await transaction.save();
-  return transaction;
+  return { transaction, idempotentReplay: false };
 };
 
 const listTransactions = async ({ userId, limit = 30, before }) => {

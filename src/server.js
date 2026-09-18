@@ -8,6 +8,8 @@ dotenv.config();
 connectDB();
 
 const app = express();
+const trustProxySetting = String(process.env.TRUST_PROXY || "1").trim();
+app.set("trust proxy", /^\d+$/.test(trustProxySetting) ? Number(trustProxySetting) : trustProxySetting);
 const maskedMongoUri = process.env.MONGO_URI
   ? process.env.MONGO_URI.replace(/\/\/([^:]+):([^@]+)@/, "//$1:***@")
   : "not configured";
@@ -19,6 +21,8 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const aiRoutes = require("./routes/aiRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const contactRoutes = require("./routes/contactRoutes");
+const creditRoutes = require("./routes/creditRoutes");
+const { ensureCreditConfiguration } = require("./services/creditService");
 const { observabilityContextMiddleware } = require("./services/observabilityService");
 
 const configuredOrigins = process.env.FRONTEND_URL
@@ -58,6 +62,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api/credits", creditRoutes);
 app.get("/api/health", (req, res) => {
   res.status(200).json({
     status: "ok",
@@ -84,4 +89,7 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`âœ… Server running on port ${PORT}`);
+  ensureCreditConfiguration().catch((error) => {
+    console.error("[credits] Failed to initialize credit configuration:", error.message);
+  });
 });

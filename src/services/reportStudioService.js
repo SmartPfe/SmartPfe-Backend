@@ -8,6 +8,7 @@ const {
   buildCompleteReportPrompt,
 } = require("./reportStudioPromptBuilder");
 const { getSectionRagContext } = require("./reportStudioRagService");
+const { settleCreditCharge, refundCreditCharge } = require("./creditService");
 
 const VALID_STATUSES = new Set(["not-started", "in-progress", "completed"]);
 const VALID_DETAIL_LEVELS = new Set(["summary", "standard", "detailed"]);
@@ -134,6 +135,17 @@ const getSourceSnapshot = (project) => ({
 
 const getSourceFingerprint = (project) =>
   crypto.createHash("sha256").update(JSON.stringify(getSourceSnapshot(project))).digest("hex");
+
+const getCompilationFingerprint = (project, chapters) =>
+  crypto.createHash("sha256").update(JSON.stringify({
+    source: getSourceFingerprint(project),
+    chapters: normalizeChapters(chapters).map(({ sectionId, title, contentHtml, contentMarkdown }) => ({
+      sectionId,
+      title,
+      contentHtml,
+      contentMarkdown,
+    })),
+  })).digest("hex");
 
 const findSection = (sections = [], sectionId) => {
   for (const section of sections) {
@@ -265,6 +277,13 @@ const generateCompleteReport = async (project, currentChapters = []) => {
   const chapters = normalizeChapters(currentChapters.length ? currentChapters : project.reportChapters || [])
     .filter((chapter) => stripHtml(chapter.contentHtml));
   if (chapters.length === 0) throw new Error("Generated chapters are required before creating the complete report.");
+  const compilationFingerprint = getCompilationFingerprint(project, chapters);
+  if (
+    project.finalReport?.sourceFingerprint === compilationFingerprint &&
+    (project.finalReport?.contentHtml || project.finalReport?.contentMarkdown)
+  ) {
+    return project.finalReport.toObject ? project.finalReport.toObject() : project.finalReport;
+  }
   const prompt = buildCompleteReportPrompt(project, chapters);
   const response = await callGemini(prompt, null, { tier: "reasoning" });
   const payload = parseAiPayload(response, "finalReport");
@@ -273,7 +292,7 @@ const generateCompleteReport = async (project, currentChapters = []) => {
     contentHtml: String(payload.contentHtml || markdownToHtml(contentMarkdown)).trim(),
     contentMarkdown,
     contentLatex: String(payload.contentLatex || markdownToLatex(contentMarkdown)).trim(),
-    sourceFingerprint: getSourceFingerprint(project),
+    sourceFingerprint: compilationFingerprint,
     generatedAt: new Date(),
   };
 };
@@ -302,9 +321,18 @@ const generateChapterStream = async (project, sectionId, detailLevel = "standard
     res.write(": keepalive\n\n");
   }, 15000);
 
-  if (req) {
-    req.on("close", () => {
+  const abortController = new AbortController();
+  let creditFinalized = false;
+  if (res) {
+    res.on("close", () => {
       clearInterval(heartbeat);
+      if (!creditFinalized) {
+        abortController.abort();
+        refundCreditCharge(req?.creditCharge, "Streaming client disconnected").catch((error) => {
+          console.error("[report-studio][stream] Credit refund failed:", error.message);
+        });
+        creditFinalized = true;
+      }
     });
   }
 
@@ -328,7 +356,7 @@ const generateChapterStream = async (project, sectionId, detailLevel = "standard
     await streamGemini(prompt, null, (chunk) => {
       accumulated += chunk;
       sendEvent("chunk", { text: chunk });
-    }, { tier: "reasoning" });
+    }, { tier: "reasoning", signal: abortController.signal });
 
     let payload;
     try {
@@ -348,13 +376,19 @@ const generateChapterStream = async (project, sectionId, detailLevel = "standard
       language: getProjectLanguage(project),
     });
 
-    sendEvent("done", { chapter: normalized });
+    const creditUsage = await settleCreditCharge(req?.creditCharge);
+    creditFinalized = true;
+    sendEvent("done", { chapter: normalized, creditUsage });
   } catch (err) {
     console.error("[report-studio][stream] Error:", err.message);
+    if (!creditFinalized) {
+      await refundCreditCharge(req?.creditCharge, err.message || "Streaming chapter generation failed").catch(() => {});
+      creditFinalized = true;
+    }
     sendEvent("error", { message: err.message || "Streaming chapter generation failed." });
   } finally {
     clearInterval(heartbeat);
-    res.end();
+    if (!res.writableEnded) res.end();
   }
 };
 

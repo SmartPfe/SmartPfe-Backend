@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const Project = require("../models/Project");
+const CreditWallet = require("../models/CreditWallet");
 
 function getLastMonths(count = 6) {
   const months = [];
@@ -114,12 +115,19 @@ const getUsers = async (req, res) => {
       .sort({ createdAt: -1 })
       .select("fullName email role hasCompletedOnboarding authProvider avatar createdAt");
 
-    res.status(200).json(
-      users.map((user) => ({
+    const wallets = await CreditWallet.find({ user: { $in: users.map((user) => user._id) } }).lean();
+    const walletByUser = new Map(wallets.map((wallet) => [String(wallet.user), wallet]));
+
+    res.status(200).json(users.map((user) => {
+      const wallet = walletByUser.get(String(user._id));
+      const promotional = Number(wallet?.promotionalBalance) || 0;
+      const purchased = Number(wallet?.purchasedBalance) || 0;
+      return {
         ...user.toObject(),
         role: user.role || "etudiant",
-      }))
-    );
+        credits: { promotional, purchased, total: promotional + purchased },
+      };
+    }));
   } catch (error) {
     console.error("[admin] getUsers error:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });

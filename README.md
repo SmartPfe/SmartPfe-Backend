@@ -48,6 +48,7 @@ MONGO_URI=mongodb://localhost:27017/pfe
 
 # Frontend URL (for CORS)
 FRONTEND_URL=http://localhost:3000
+TRUST_PROXY=1
 
 # Email (Nodemailer via Gmail)
 EMAIL_SERVICE=gmail
@@ -60,6 +61,9 @@ GOOGLE_CLIENT_ID=your_client_id.apps.googleusercontent.com
 
 # Gemini AI
 GEMINI_API_KEY=your_gemini_api_key
+
+# Optional credit-mode override; leave blank for admin-managed mode
+CREDITS_ENFORCEMENT_MODE=
 ```
 
 > **Gmail App Password**: Enable 2FA on your Google account, then generate one at [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords).
@@ -100,6 +104,11 @@ node database_dump/restore_db.js "mongodb+srv://user:pass@cluster.mongodb.net/pf
 | `/api/ai` | AI generation, refinement, translation for all modules |
 | `/api/notifications` | Notifications + SSE stream |
 | `/api/admin` | Admin dashboard and management |
+| `/api/credits` | Student wallet, pricing catalog, and transaction history |
+
+### Credit economy
+
+Credit policies and wallet defaults are seeded automatically on startup, then managed from **Admin → Credit Economy**. AI routes reserve credits before calling Gemini, settle only on success, and refund failed or disconnected requests. Use `shadow` during a staged rollout to record usage without reducing balances.
 
 ---
 

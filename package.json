@@ -8,7 +8,7 @@
     "evaluate:rag": "node rag-evaluation/run_pipeline.js",
     "evaluate:sections": "node rag-evaluation/run_section_benchmark.js",
     "evaluate:ragas": "python rag-evaluation/evaluate_official_ragas.py",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test tests/*.test.js"
   },
   "keywords": [],
   "author": "",

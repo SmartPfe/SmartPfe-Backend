@@ -7,7 +7,7 @@ const CreditPolicy = require("../src/models/CreditPolicy");
 const CreditWallet = require("../src/models/CreditWallet");
 
 test("production launch economy matches the approved credit model", () => {
-  assert.equal(DEFAULT_CREDIT_SETTINGS.welcomeCredits, 110);
+  assert.equal(DEFAULT_CREDIT_SETTINGS.welcomeCredits, 105);
   assert.equal(DEFAULT_CREDIT_SETTINGS.dailyPromotionalRefill, 20);
   assert.equal(DEFAULT_CREDIT_SETTINGS.timezone, "Africa/Tunis");
 

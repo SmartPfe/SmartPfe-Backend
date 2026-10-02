@@ -1,6 +1,6 @@
 const DEFAULT_CREDIT_SETTINGS = Object.freeze({
   key: "default",
-  welcomeCredits: 110,
+  welcomeCredits: 105,
   dailyPromotionalRefill: 20,
   timezone: "Africa/Tunis",
   enforcementMode: "enforce",

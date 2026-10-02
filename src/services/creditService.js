@@ -55,29 +55,43 @@ const walletPayload = (wallet) => {
 
 const ensureCreditConfiguration = async () => {
   if (configurationPromise) return configurationPromise;
-  configurationPromise = Promise.all([
-    CreditPolicy.bulkWrite(
-      DEFAULT_CREDIT_POLICIES.map((policy, sortOrder) => ({
-        updateOne: {
-          filter: { key: policy.key },
-          update: {
-            $setOnInsert: {
-              ...POLICY_BY_KEY[policy.key],
-              sortOrder,
-              version: 1,
+  configurationPromise = (async () => {
+    await Promise.all([
+      CreditPolicy.bulkWrite(
+        DEFAULT_CREDIT_POLICIES.map((policy, sortOrder) => ({
+          updateOne: {
+            filter: { key: policy.key },
+            update: {
+              $setOnInsert: {
+                ...POLICY_BY_KEY[policy.key],
+                sortOrder,
+                version: 1,
+              },
             },
+            upsert: true,
           },
-          upsert: true,
+        })),
+        { ordered: false }
+      ),
+      CreditSettings.findOneAndUpdate(
+        { key: "default" },
+        { $setOnInsert: { ...DEFAULT_CREDIT_SETTINGS, version: 1 } },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      ),
+    ]);
+
+    await CreditSettings.updateOne(
+      { key: "default", welcomeCredits: 110 },
+      {
+        $set: {
+          welcomeCredits: DEFAULT_CREDIT_SETTINGS.welcomeCredits,
+          updateReason: "Migrate default welcome credits from 110 to 105.",
         },
-      })),
-      { ordered: false }
-    ),
-    CreditSettings.findOneAndUpdate(
-      { key: "default" },
-      { $setOnInsert: { ...DEFAULT_CREDIT_SETTINGS, version: 1 } },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    ),
-  ]).catch((error) => {
+        $inc: { version: 1 },
+      }
+    );
+    await migrateWelcomeCreditsToCurrentDefault();
+  })().catch((error) => {
     configurationPromise = null;
     throw error;
   });
@@ -202,6 +216,52 @@ const recordSettledGrant = async ({ userId, requestId, kind, promotionalDelta = 
     },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
+};
+
+const migrateWelcomeCreditsToCurrentDefault = async () => {
+  const currentWelcomeCredits = Number(DEFAULT_CREDIT_SETTINGS.welcomeCredits) || 0;
+  const oldWelcomeCredits = 110;
+  const correctionAmount = oldWelcomeCredits - currentWelcomeCredits;
+  if (correctionAmount <= 0) return;
+
+  const oldWelcomeTransactions = await CreditTransaction.find({
+    kind: "welcome",
+    status: "settled",
+    promotionalDelta: oldWelcomeCredits,
+  })
+    .select("user")
+    .limit(500)
+    .lean();
+
+  for (const transaction of oldWelcomeTransactions) {
+    const requestId = `welcome-correction:${transaction.user}`;
+    const alreadyCorrected = await CreditTransaction.exists({ requestId });
+    if (alreadyCorrected) continue;
+
+    const wallet = await CreditWallet.findOneAndUpdate(
+      {
+        user: transaction.user,
+        promotionalBalance: { $gte: correctionAmount },
+        appliedAdjustmentRequestIds: { $ne: requestId },
+      },
+      {
+        $inc: { promotionalBalance: -correctionAmount, __v: 1 },
+        $push: { appliedAdjustmentRequestIds: { $each: [requestId], $slice: -500 } },
+      },
+      { new: true }
+    );
+    if (!wallet) continue;
+
+    await recordSettledGrant({
+      userId: transaction.user,
+      requestId,
+      kind: "admin_adjustment",
+      promotionalDelta: -correctionAmount,
+      wallet,
+      reason: `Correct welcome credits from ${oldWelcomeCredits} to ${currentWelcomeCredits}.`,
+      reference: "welcome-credit-migration",
+    });
+  }
 };
 
 const applyWelcomeGrant = async (user, settings) => {

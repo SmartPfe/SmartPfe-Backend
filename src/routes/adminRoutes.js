@@ -8,6 +8,12 @@ const {
   adjustCredits,
   getUserCreditHistory,
 } = require("../controllers/adminCreditController");
+const {
+  getAdminRequests,
+  getAdminRequest,
+  patchAdminRequestStatus,
+  addCredits,
+} = require("../controllers/creditPurchaseRequestController");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 
 router.use(protect, adminOnly);
@@ -20,5 +26,9 @@ router.patch("/credits/policies/:key", patchCreditPolicy);
 router.patch("/credits/settings", patchCreditSettings);
 router.post("/users/:userId/credits/adjust", adjustCredits);
 router.get("/users/:userId/credits", getUserCreditHistory);
+router.get("/credit-requests", getAdminRequests);
+router.get("/credit-requests/:id", getAdminRequest);
+router.patch("/credit-requests/:id/status", patchAdminRequestStatus);
+router.post("/credit-requests/:id/add-credits", addCredits);
 
 module.exports = router;

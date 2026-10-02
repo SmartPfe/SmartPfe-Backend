@@ -3,6 +3,7 @@ const User = require("../models/User");
 const crypto = require("crypto");
 const { OAuth2Client } = require("google-auth-library");
 const { createNotification, createAdminNotification } = require("../services/notificationService");
+const { getWalletForUser } = require("../services/creditService");
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -198,6 +199,7 @@ const verifyEmail = async (req, res) => {
     user.emailVerificationCodeHash = undefined;
     user.emailVerificationCodeExpiry = undefined;
     await user.save();
+    await getWalletForUser(user);
 
     await createAdminNotification({
       title: "New user registered",
@@ -472,6 +474,7 @@ const googleLogin = async (req, res) => {
           avatar: picture,
           emailVerified: true,
         });
+        await getWalletForUser(user);
 
         await createAdminNotification({
           title: "New Google user registered",

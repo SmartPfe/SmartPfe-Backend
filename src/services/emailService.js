@@ -245,9 +245,72 @@ const sendPurchasedCreditsEmail = async ({ email, fullName, amount, balance }) =
   return { sent: true };
 };
 
+const sendCreditPurchaseRequestEmail = async ({ request }) => {
+  const transporter = createTransporter();
+  const recipient =
+    process.env.ADMIN_CREDIT_REQUEST_EMAIL ||
+    process.env.ADMIN_EMAIL ||
+    process.env.CONTACT_TO_EMAIL ||
+    process.env.EMAIL_FROM ||
+    process.env.EMAIL_USER;
+  const requestId = String(request._id || request.id || "");
+  const createdAt = request.createdAt ? new Date(request.createdAt) : new Date();
+  const payload = {
+    requestId,
+    studentName: request.studentName,
+    email: request.email,
+    phone: request.phone,
+    requestedCredits: request.requestedCredits,
+    packageLabel: request.packageLabel || "Custom amount",
+    price: request.price,
+    currency: request.currency || "TND",
+    createdAt: createdAt.toISOString(),
+  };
+
+  if (!transporter || !recipient) {
+    console.info("[emailService] Email not configured. Dev fallback for credit purchase request:", payload);
+    if (process.env.NODE_ENV !== "production") return { devFallback: true, sent: false };
+    throw new Error("Admin credit request email is not configured.");
+  }
+
+  await transporter.sendMail({
+    from: `"SmartPFE" <${getSenderAddress()}>`,
+    to: recipient,
+    replyTo: request.email,
+    subject: "New Credit Purchase Request",
+    html: `
+      <div style="margin:0;padding:28px 16px;background:#f7f8fc;font-family:Arial,sans-serif;color:#172033;">
+        <div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e6e8ef;border-radius:18px;overflow:hidden;">
+          <div style="padding:24px 28px;background:#172033;color:#ffffff;">
+            <div style="font-size:22px;font-weight:800;">New Credit Purchase Request</div>
+            <div style="margin-top:6px;font-size:13px;color:#d9deea;">Review this request from the Admin Dashboard.</div>
+          </div>
+          <div style="padding:28px;">
+            <p style="margin:0 0 18px;font-size:14px;line-height:1.6;color:#526076;">
+              A student submitted a manual credit purchase request. Contact the student to confirm payment, then fulfill the wallet from the Admin Dashboard.
+            </p>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;">
+              <tr><td style="padding:9px 0;color:#697386;">Student name</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.studentName)}</td></tr>
+              <tr><td style="padding:9px 0;color:#697386;">Student email</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.email)}</td></tr>
+              <tr><td style="padding:9px 0;color:#697386;">Phone number</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.phone)}</td></tr>
+              <tr><td style="padding:9px 0;color:#697386;">Requested credits</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.requestedCredits)}</td></tr>
+              <tr><td style="padding:9px 0;color:#697386;">Package</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.packageLabel || "Custom amount")}</td></tr>
+              <tr><td style="padding:9px 0;color:#697386;">Price</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.price)} ${escapeHtml(request.currency || "TND")}</td></tr>
+              <tr><td style="padding:9px 0;color:#697386;">Request date</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(createdAt.toLocaleString("en-GB", { timeZone: "Africa/Tunis" }))}</td></tr>
+              <tr><td style="padding:9px 0;color:#697386;">Request ID</td><td style="padding:9px 0;font-family:monospace;font-weight:700;">${escapeHtml(requestId)}</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>`,
+  });
+
+  return { sent: true };
+};
+
 module.exports = {
   sendResetPasswordEmail,
   sendEmailVerificationCode,
   sendContactMessageEmail,
   sendPurchasedCreditsEmail,
+  sendCreditPurchaseRequestEmail,
 };

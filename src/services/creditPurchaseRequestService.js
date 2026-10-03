@@ -2,7 +2,18 @@ const CreditPurchaseRequest = require("../models/CreditPurchaseRequest");
 const User = require("../models/User");
 const { getCreditPurchasePricing } = require("../config/creditPurchasePricing");
 const { CreditError, adjustUserCredits, getWalletForUser } = require("./creditService");
-const { sendCreditPurchaseRequestEmail, sendPurchasedCreditsEmail } = require("./emailService");
+const { sendCreditPurchaseRequestEmail, sendPurchasedCreditsEmail, sendCreditPurchaseReceiptEmail } = require("./emailService");
+const { createNotification } = require("./notificationService");
+
+const notifyStudent = async (request, title, message, type = "success") => {
+  try {
+    await createNotification({ user: request.user, title, message, type, link: `/workspace/settings/credits?request=${request._id}` });
+    return true;
+  } catch (error) {
+    console.error("[credits] student notification error:", error.message);
+    return false;
+  }
+};
 
 const sanitize = (value, maxLength = 500) => String(value || "").trim().slice(0, maxLength);
 
@@ -34,6 +45,8 @@ const publicRequest = (request) => ({
   creditedAt: request.creditedAt,
   createdAt: request.createdAt,
   updatedAt: request.updatedAt,
+  receiptEmailStatus: request.receiptEmailStatus,
+  receiptEmailSentAt: request.receiptEmailSentAt,
 });
 
 const quoteCreditPurchase = ({ packageKey, credits }) => {
@@ -78,15 +91,28 @@ const createCreditPurchaseRequest = async ({ user, phone, packageKey, credits })
     status: "PENDING",
   });
 
-  let emailDeliveryWarning = false;
-  try {
-    await sendCreditPurchaseRequestEmail({ request });
-  } catch (error) {
-    emailDeliveryWarning = true;
-    console.error("[credits] admin purchase-request email error:", error.message);
-  }
+  const [adminEmail, studentEmail, notificationSent] = await Promise.all([
+    sendCreditPurchaseRequestEmail({ request }).catch((error) => {
+      console.error("[credits] admin purchase-request email error:", error.message);
+      return { sent: false };
+    }),
+    sendCreditPurchaseReceiptEmail({ request }).catch((error) => {
+      console.error("[credits] student receipt email error:", error.message);
+      return { sent: false, failed: true };
+    }),
+    notifyStudent(request, "Credit request submitted", `Your request for ${request.requestedCredits} credits is saved. A team member will contact you as soon as possible with the payment steps.`),
+  ]);
+  request.receiptEmailStatus = studentEmail.sent ? "sent" : studentEmail.failed ? "failed" : "unavailable";
+  if (studentEmail.sent) request.receiptEmailSentAt = new Date();
+  // A receipt-status write failure must not turn a saved request into a failed submission.
+  try { await request.save(); } catch (error) { console.error("[credits] receipt status save error:", error.message); }
 
-  return { request: publicRequest(request.toObject()), emailDeliveryWarning };
+  return {
+    request: publicRequest(request.toObject()),
+    studentEmailSent: studentEmail.sent === true,
+    notificationSent,
+    emailDeliveryWarning: adminEmail.sent !== true || studentEmail.sent !== true,
+  };
 };
 
 const listMyCreditPurchaseRequests = async ({ userId, limit = 20 }) => {
@@ -163,6 +189,13 @@ const updateCreditPurchaseRequestStatus = async ({ requestId, status, admin, not
     request.cancellationReason = sanitize(note, 500);
   }
   await request.save();
+  await notifyStudent(request,
+    nextStatus === "CONFIRMED" ? "Credit request confirmed" : "Credit request cancelled",
+    nextStatus === "CONFIRMED"
+      ? `Your request for ${request.requestedCredits} credits has been confirmed. Your credits will appear when the administrator completes the deposit.`
+      : `Your request for ${request.requestedCredits} credits was cancelled.${request.cancellationReason ? ` Reason: ${request.cancellationReason}` : " View your credit history for details."}`,
+    nextStatus === "CANCELLED" ? "info" : "success"
+  );
   return publicRequest(request.toObject());
 };
 
@@ -201,6 +234,7 @@ const addRequestedCreditsToWallet = async ({ requestId, admin }) => {
   let emailSent = false;
   let emailDeliveryWarning = false;
   if (!idempotentReplay) {
+    await notifyStudent(request, "Credits added to your wallet", `${request.requestedCredits} purchased credits have been added. Your request is complete.`);
     try {
       const result = await sendPurchasedCreditsEmail({
         email: targetUser.email,

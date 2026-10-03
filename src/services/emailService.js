@@ -307,10 +307,44 @@ const sendCreditPurchaseRequestEmail = async ({ request }) => {
   return { sent: true };
 };
 
+const sendCreditPurchaseReceiptEmail = async ({ request }) => {
+  const transporter = createTransporter();
+  if (!transporter) return { sent: false };
+  const requestId = String(request._id);
+  const frontendUrl = String(process.env.FRONTEND_URL || "http://localhost:3000").split(",")[0].trim().replace(/\/$/, "");
+  const historyUrl = `${frontendUrl}/workspace/settings/credits?request=${encodeURIComponent(requestId)}`;
+  const date = new Date(request.createdAt).toLocaleString("en-GB", { timeZone: "Africa/Tunis" });
+  const rows = [
+    ["Request ID", requestId], ["Submitted", `${date} (Tunisia time)`],
+    ["Package", request.packageLabel || "Custom amount"], ["Credits requested", request.requestedCredits],
+    ["Amount to pay", `${request.price} ${request.currency}`], ["Contact phone", request.phone],
+    ["Status", "Pending — awaiting contact from our team"],
+  ];
+  const nextSteps = "A team member will contact you as soon as possible to explain how to make your payment. After your payment is verified, an administrator will add the credits to your wallet. Your request is saved; no payment has been collected through SmartPFE.";
+  await transporter.sendMail({
+    from: `"SmartPFE" <${getSenderAddress()}>`,
+    to: request.email,
+    subject: `We've received your request for ${request.requestedCredits} SmartPFE credits`,
+    text: `Hello ${request.studentName},\n\nYour credit request has been submitted successfully.\n\n${rows.map(([label, value]) => `${label}: ${value}`).join("\n")}\n\n${nextSteps}\n\nTrack your request: ${historyUrl}`,
+    html: `<div style="background:#f7f8fc;padding:32px 16px;font-family:Arial,sans-serif;color:#172033">
+      <div style="max-width:580px;margin:auto;background:white;border:1px solid #e6e8ef;border-radius:20px;overflow:hidden">
+        <div style="background:#5b4bdb;color:white;padding:28px 32px"><div style="font-size:24px;font-weight:800">SmartPFE</div><p style="margin:10px 0 0">Your credit request is received</p></div>
+        <div style="padding:32px"><h1 style="font-size:22px;margin:0 0 12px">Thank you, ${escapeHtml(request.studentName)}.</h1>
+          <p style="color:#526076;line-height:1.7">${escapeHtml(nextSteps)}</p>
+          <table style="width:100%;font-size:14px;border-collapse:collapse">${rows.map(([label, value]) => `<tr><td style="padding:10px 0;border-bottom:1px solid #e6e8ef;color:#697386">${escapeHtml(label)}</td><td style="padding:10px 0;border-bottom:1px solid #e6e8ef;word-break:break-word;font-weight:700">${escapeHtml(value)}</td></tr>`).join("")}</table>
+          <p style="margin:28px 0"><a href="${escapeHtml(historyUrl)}" style="background:#5b4bdb;color:white;padding:13px 20px;border-radius:10px;text-decoration:none;font-weight:700;display:inline-block">View my credit history</a></p>
+          <p style="font-size:12px;color:#697386">Keep this email as a record of your request. You can follow its status anytime in Settings → Credit History.</p>
+        </div>
+      </div></div>`,
+  });
+  return { sent: true };
+};
+
 module.exports = {
   sendResetPasswordEmail,
   sendEmailVerificationCode,
   sendContactMessageEmail,
   sendPurchasedCreditsEmail,
   sendCreditPurchaseRequestEmail,
+  sendCreditPurchaseReceiptEmail,
 };

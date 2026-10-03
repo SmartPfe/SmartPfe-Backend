@@ -37,7 +37,7 @@ const createRequest = async (req, res) => {
     });
     res.status(201).json({
       ...result,
-      message: "Your credit request has been submitted successfully. The admin will contact you shortly.",
+      message: "Your request is saved. A team member will contact you as soon as possible to explain the payment steps. Your credits will be added after your payment is verified.",
     });
   } catch (error) {
     console.error("[credits] create purchase request error:", error.message);

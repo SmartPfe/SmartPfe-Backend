@@ -1,5 +1,22 @@
 # PFE Guidance Backend Documentation
 
+## Student Credit Receipts and History
+
+Credit purchase submission saves the request, sends the existing admin email plus a student receipt with request ID, amount, price, phone, submission date and payment instructions, and creates a linked student notification. Confirmation, cancellation and completion also create student notifications linking to `/workspace/settings/credits?request=<id>`. Payment is arranged externally by the team; credits are deposited after payment verification.
+
+Receipt delivery is recorded as `receiptEmailStatus` (`pending`, `sent`, `failed`, `unavailable`) and `receiptEmailSentAt`. The submission response includes `studentEmailSent`, `notificationSent` and `emailDeliveryWarning`. Email or notification failures do not invalidate a saved request. Earlier requests may have no receipt metadata.
+
+Authenticated student history endpoints:
+
+- `GET /api/credits/history?section=requests|transactions&page=1&limit=10` returns `{ items, total, page, limit, pages }`.
+- Filters: `status`, `kind` (transactions only), `search`, `dateFrom`, `dateTo` (inclusive UTC calendar dates).
+- `GET /api/credits/requests/:id` returns the student's own request for deep links and details. Another student's request returns 404.
+- Ownership always comes from `req.user._id`; limits are capped at 50 with stable date/ID sorting.
+
+Set `ADMIN_CREDIT_REQUEST_EMAIL` to select the admin recipient explicitly. The sender SMTP credentials continue to use the existing email configuration.
+
+`tests/studentCreditExperience.test.js` exercises the real Express routes, authentication, receipt/notification service flow, failure responses, and filtering/pagination with isolated model and mail adapters. It does not connect to Atlas or send real messages.
+
 ## 1. Repository Purpose
 
 This repository contains the backend API for PFE Guidance / Smart PFE.

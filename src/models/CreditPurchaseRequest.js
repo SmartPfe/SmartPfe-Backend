@@ -26,6 +26,8 @@ const creditPurchaseRequestSchema = new mongoose.Schema(
     creditedAt: Date,
     creditedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     creditTransaction: { type: mongoose.Schema.Types.ObjectId, ref: "CreditTransaction" },
+    receiptEmailStatus: { type: String, enum: ["pending", "sent", "failed", "unavailable"], default: "pending" },
+    receiptEmailSentAt: Date,
   },
   { timestamps: true }
 );

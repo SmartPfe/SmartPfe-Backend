@@ -60,6 +60,11 @@ const userSchema = new mongoose.Schema(
       enum: ["admin", "etudiant"],
       default: "etudiant",
     },
+    uiLanguage: {
+      type: String,
+      enum: ["en", "fr"],
+      default: "en",
+    },
   },
   { timestamps: true }
 );

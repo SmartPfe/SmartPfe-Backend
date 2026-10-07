@@ -39,6 +39,7 @@ const buildAuthResponse = (user, authProvider = "email") => ({
   emailVerified: user.emailVerified !== false,
   hasCompletedOnboarding: user.hasCompletedOnboarding,
   role: user.role || "etudiant",
+  uiLanguage: user.uiLanguage || "en",
   token: generateToken(user._id),
 });
 
@@ -276,6 +277,33 @@ const getProfile = async (req, res) => {
   }
 };
 
+const getPreferences = async (req, res) => {
+  return res.json({ uiLanguage: req.user.uiLanguage || "en" });
+};
+
+const updatePreferences = async (req, res) => {
+  const { uiLanguage } = req.body || {};
+  if (uiLanguage !== "en" && uiLanguage !== "fr") {
+    return res.status(400).json({ message: "uiLanguage must be en or fr" });
+  }
+
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: { uiLanguage } },
+      { new: true, runValidators: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.json({ uiLanguage: user.uiLanguage || "en" });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 const updateProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
@@ -339,6 +367,7 @@ const updateProfile = async (req, res) => {
       emailVerified: user.emailVerified !== false,
       hasCompletedOnboarding: user.hasCompletedOnboarding,
       role: user.role || "etudiant",
+      uiLanguage: user.uiLanguage || "en",
       passwordChanged,
     });
   } catch (error) {
@@ -500,6 +529,7 @@ const googleLogin = async (req, res) => {
         emailVerified: true,
         hasCompletedOnboarding: user.hasCompletedOnboarding,
         role: user.role || "etudiant",
+        uiLanguage: user.uiLanguage || "en",
         token: generateToken(user._id),
       });
     } else {
@@ -517,6 +547,8 @@ module.exports = {
   verifyEmail,
   resendVerificationCode,
   getProfile,
+  getPreferences,
+  updatePreferences,
   updateProfile,
   forgotPassword,
   resetPassword,

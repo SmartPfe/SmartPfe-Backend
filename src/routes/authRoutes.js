@@ -7,6 +7,8 @@ const {
   verifyEmail,
   resendVerificationCode,
   getProfile,
+  getPreferences,
+  updatePreferences,
   updateProfile,
   forgotPassword,
   resetPassword,
@@ -26,6 +28,9 @@ router.post("/resend-verification-code", resendVerificationCode);
 router.post("/login", loginUser);
 
 router.post("/google", googleLogin);
+
+router.get("/preferences", protect, getPreferences);
+router.put("/preferences", protect, updatePreferences);
 
 router.get(
   "/profile",

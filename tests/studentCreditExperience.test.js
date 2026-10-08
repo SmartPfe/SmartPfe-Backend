@@ -14,6 +14,7 @@ const student = { _id: "64b64c8f4a7d2c0012345678", fullName: "Student <example>"
 const requestId = "64b64c8f4a7d2c0012345679";
 
 async function fixtureServer(t) {
+  t.mock.method(User, "findOne", () => ({ select: async () => null }));
   t.mock.method(User, "findById", () => ({ select: async () => student }));
   const app = express(); app.use(express.json()); app.use("/api/credits", creditRoutes);
   const server = await new Promise((resolve) => { const instance = app.listen(0, "127.0.0.1", () => resolve(instance)); });

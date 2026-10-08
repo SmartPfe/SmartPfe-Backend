@@ -1,3 +1,4 @@
+const { interfaceError } = require("../lib/interfaceMessages");
 const Project = require("../models/Project");
 const { callGemini } = require("./geminiService");
 const {
@@ -39,12 +40,12 @@ const parseActorsResponse = (content) => {
   try {
     parsed = JSON.parse(cleaned);
   } catch (error) {
-    throw new Error("AI returned invalid actor JSON. Please try again.");
+    throw interfaceError("AI returned invalid actor JSON. Please try again.", "ai.actorGenerationFailed");
   }
 
   const actors = normalizeActors(parsed.actors);
   if (actors.length === 0) {
-    throw new Error("AI did not return any valid actors. Please try again.");
+    throw interfaceError("AI did not return any valid actors. Please try again.", "ai.actorGenerationFailed");
   }
 
   return actors;
@@ -54,7 +55,7 @@ const getProjectForUser = async (userId, projectId = null) => {
   const query = projectId ? { _id: projectId, user: userId } : { user: userId };
   const project = await Project.findOne(query);
   if (!project) {
-    throw new Error("Project not found for this user.");
+    throw interfaceError("Project not found for this user.", "project.notFound");
   }
   return project;
 };
@@ -68,7 +69,7 @@ const generateActors = async (project) => {
 const refineActors = async (project, currentActors, instructions = "") => {
   const actors = normalizeActors(currentActors);
   if (actors.length === 0) {
-    throw new Error("Current actors are required to refine.");
+    throw interfaceError("Current actors are required to refine.", "ai.currentActorsRequiredToRefine");
   }
 
   const prompt = buildActorRefinementPrompt(project, actors, instructions);
@@ -79,7 +80,7 @@ const refineActors = async (project, currentActors, instructions = "") => {
 const translateActors = async (project, currentActors) => {
   const actors = normalizeActors(currentActors);
   if (actors.length === 0) {
-    throw new Error("Current actors are required to translate.");
+    throw interfaceError("Current actors are required to translate.", "ai.currentActorsRequiredToTranslate");
   }
 
   const prompt = buildActorTranslationPrompt(project, actors);
@@ -106,7 +107,7 @@ const saveActors = async (userId, projectId, actors, language) => {
   );
 
   if (!project) {
-    throw new Error("Project not found for this user.");
+    throw interfaceError("Project not found for this user.", "project.notFound");
   }
 
   return {

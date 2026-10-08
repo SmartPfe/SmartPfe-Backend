@@ -2,12 +2,12 @@ const CreditPurchaseRequest = require("../models/CreditPurchaseRequest");
 const User = require("../models/User");
 const { getCreditPurchasePricing } = require("../config/creditPurchasePricing");
 const { CreditError, adjustUserCredits, getWalletForUser } = require("./creditService");
-const { sendCreditPurchaseRequestEmail, sendPurchasedCreditsEmail, sendCreditPurchaseReceiptEmail } = require("./emailService");
+const { sendCreditPurchaseRequestEmail, sendPurchasedCreditsEmail, sendCreditPurchaseReceiptEmail, getCreditPurchaseRequestRecipient } = require("./emailService");
 const { createNotification } = require("./notificationService");
 
-const notifyStudent = async (request, title, message, type = "success") => {
+const notifyStudent = async (request, title, message, type = "success", metadata = {}) => {
   try {
-    await createNotification({ user: request.user, title, message, type, link: `/workspace/settings/credits?request=${request._id}` });
+    await createNotification({ user: request.user, title, message, type, ...metadata, link: `/workspace/settings/credits?request=${request._id}` });
     return true;
   } catch (error) {
     console.error("[credits] student notification error:", error.message);
@@ -92,15 +92,25 @@ const createCreditPurchaseRequest = async ({ user, phone, packageKey, credits })
   });
 
   const [adminEmail, studentEmail, notificationSent] = await Promise.all([
-    sendCreditPurchaseRequestEmail({ request }).catch((error) => {
+    (async () => {
+      const recipient = getCreditPurchaseRequestRecipient();
+      let uiLanguage = "en";
+      if (recipient) {
+        try {
+          const adminRecipient = await User.findOne({ email: recipient.trim().toLowerCase(), role: "admin" }).select("uiLanguage");
+          uiLanguage = adminRecipient?.uiLanguage || "en";
+        } catch (error) { console.error("[credits] admin recipient preference error:", error.message); }
+      }
+      return sendCreditPurchaseRequestEmail({ request, uiLanguage });
+    })().catch((error) => {
       console.error("[credits] admin purchase-request email error:", error.message);
       return { sent: false };
     }),
-    sendCreditPurchaseReceiptEmail({ request }).catch((error) => {
+    sendCreditPurchaseReceiptEmail({ request, uiLanguage: user.uiLanguage }).catch((error) => {
       console.error("[credits] student receipt email error:", error.message);
       return { sent: false, failed: true };
     }),
-    notifyStudent(request, "Credit request submitted", `Your request for ${request.requestedCredits} credits is saved. A team member will contact you as soon as possible with the payment steps.`),
+    notifyStudent(request, "Credit request submitted", `Your request for ${request.requestedCredits} credits is saved. A team member will contact you as soon as possible with the payment steps.`, "success", { titleKey: "credits.submitted.title", messageKey: "credits.submitted.message", messageParams: { credits: request.requestedCredits } }),
   ]);
   request.receiptEmailStatus = studentEmail.sent ? "sent" : studentEmail.failed ? "failed" : "unavailable";
   if (studentEmail.sent) request.receiptEmailSentAt = new Date();
@@ -194,7 +204,10 @@ const updateCreditPurchaseRequestStatus = async ({ requestId, status, admin, not
     nextStatus === "CONFIRMED"
       ? `Your request for ${request.requestedCredits} credits has been confirmed. Your credits will appear when the administrator completes the deposit.`
       : `Your request for ${request.requestedCredits} credits was cancelled.${request.cancellationReason ? ` Reason: ${request.cancellationReason}` : " View your credit history for details."}`,
-    nextStatus === "CANCELLED" ? "info" : "success"
+    nextStatus === "CANCELLED" ? "info" : "success",
+    { titleKey: nextStatus === "CONFIRMED" ? "credits.confirmed.title" : "credits.cancelled.title",
+      messageKey: nextStatus === "CONFIRMED" ? "credits.confirmed.message" : request.cancellationReason ? "credits.cancelledWithReason.message" : "credits.cancelled.message",
+      messageParams: { credits: request.requestedCredits, ...(request.cancellationReason ? { reason: request.cancellationReason } : {}) } }
   );
   return publicRequest(request.toObject());
 };
@@ -208,7 +221,7 @@ const addRequestedCreditsToWallet = async ({ requestId, admin }) => {
   if (request.creditedAt || request.creditTransaction) {
     throw new CreditError("Credits have already been added for this request.", "CREDIT_REQUEST_ALREADY_CREDITED", 409);
   }
-  const targetUser = await User.findById(request.user).select("fullName email emailVerified role");
+  const targetUser = await User.findById(request.user).select("fullName email emailVerified role uiLanguage");
   if (!targetUser || (targetUser.role || "etudiant") === "admin") {
     throw new CreditError("Student account for this request was not found.", "CREDIT_REQUEST_USER_NOT_FOUND", 404);
   }
@@ -234,13 +247,14 @@ const addRequestedCreditsToWallet = async ({ requestId, admin }) => {
   let emailSent = false;
   let emailDeliveryWarning = false;
   if (!idempotentReplay) {
-    await notifyStudent(request, "Credits added to your wallet", `${request.requestedCredits} purchased credits have been added. Your request is complete.`);
+    await notifyStudent(request, "Credits added to your wallet", `${request.requestedCredits} purchased credits have been added. Your request is complete.`, "success", { titleKey: "credits.added.title", messageKey: "credits.added.message", messageParams: { credits: request.requestedCredits } });
     try {
       const result = await sendPurchasedCreditsEmail({
         email: targetUser.email,
         fullName: targetUser.fullName,
         amount: request.requestedCredits,
         balance: wallet.purchased,
+        uiLanguage: targetUser.uiLanguage,
       });
       emailSent = result.sent === true;
     } catch (error) {

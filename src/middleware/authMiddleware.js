@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { withMessageMetadata } = require("../lib/interfaceMessages");
 
 const getJwtSecret = () => {
   const secret = process.env.JWT_SECRET;
@@ -31,18 +32,18 @@ const protect = async (req, res, next) => {
       req.user = await User.findById(decoded.id).select("-password");
 
       if (!req.user) {
-        return res.status(401).json({ message: "Not authorized, user not found" });
+        return res.status(401).json(withMessageMetadata({ message: "Not authorized, user not found" }, "auth.userNotAuthorized"));
       }
 
       return next();
     } catch (error) {
       console.error("[auth] Token verification failed:", error.message);
-      return res.status(401).json({ message: "Not authorized, token failed" });
+      return res.status(401).json(withMessageMetadata({ message: "Not authorized, token failed" }, "auth.tokenInvalid"));
     }
   }
 
   if (!token) {
-    return res.status(401).json({ message: "Not authorized, no token" });
+    return res.status(401).json(withMessageMetadata({ message: "Not authorized, no token" }, "auth.tokenRequired"));
   }
 };
 
@@ -52,7 +53,7 @@ const adminOnly = (req, res, next) => {
     return;
   }
 
-  res.status(403).json({ message: "Admin access required" });
+  res.status(403).json(withMessageMetadata({ message: "Admin access required" }, "auth.adminAccessRequired"));
 };
 
 module.exports = { protect, adminOnly };

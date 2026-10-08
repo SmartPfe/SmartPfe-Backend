@@ -1,3 +1,4 @@
+const { interfaceError } = require("../lib/interfaceMessages");
 const crypto = require("crypto");
 const Project = require("../models/Project");
 const { callGemini } = require("./geminiService");
@@ -91,7 +92,7 @@ const parsePresentationResponse = (content, project, durationMinutes, language =
     parsed = JSON.parse(extractJsonPayload(content));
   } catch (error) {
     console.error("[presentation] Invalid AI JSON response:", String(content || "").slice(0, 1000));
-    throw new Error("AI returned invalid presentation JSON. Please try again.");
+    throw interfaceError("AI returned invalid presentation JSON. Please try again.", "ai.presentationGenerationFailed");
   }
 
   const presentation = normalizePresentation({
@@ -100,7 +101,7 @@ const parsePresentationResponse = (content, project, durationMinutes, language =
   }, project, language);
 
   if (presentation.slides.length === 0) {
-    throw new Error("AI did not return any valid slides. Please try again.");
+    throw interfaceError("AI did not return any valid slides. Please try again.", "ai.presentationGenerationFailed");
   }
 
   return presentation;
@@ -112,7 +113,7 @@ const parsePresentationSlideResponse = (content, project, currentSlide) => {
     parsed = JSON.parse(extractJsonPayload(content));
   } catch (error) {
     console.error("[presentation] Invalid AI slide JSON response:", String(content || "").slice(0, 1000));
-    throw new Error("AI returned invalid slide JSON. Please try again.");
+    throw interfaceError("AI returned invalid slide JSON. Please try again.", "ai.presentationGenerationFailed");
   }
 
   const [slide] = normalizeSlides([
@@ -124,7 +125,7 @@ const parsePresentationSlideResponse = (content, project, currentSlide) => {
   ], getProjectLanguage(project));
 
   if (!slide || !slide.title) {
-    throw new Error("AI did not return a valid slide. Please try again.");
+    throw interfaceError("AI did not return a valid slide. Please try again.", "ai.presentationGenerationFailed");
   }
 
   return slide;
@@ -133,7 +134,7 @@ const parsePresentationSlideResponse = (content, project, currentSlide) => {
 const getProjectForUser = async (userId, projectId = null) => {
   const query = projectId ? { _id: projectId, user: userId } : { user: userId };
   const project = await Project.findOne(query);
-  if (!project) throw new Error("Project not found for this user.");
+  if (!project) throw interfaceError("Project not found for this user.", "project.notFound");
   return project;
 };
 
@@ -165,12 +166,12 @@ const generatePresentation = async (project, durationMinutes) => {
 const refinePresentation = async (project, currentPresentation, instructions = "", slideId = "") => {
   const presentation = normalizePresentation(currentPresentation, project);
   if (presentation.slides.length === 0) {
-    throw new Error("Current presentation is required to refine.");
+    throw interfaceError("Current presentation is required to refine.", "ai.currentPresentationRequiredToRefine");
   }
 
   if (slideId) {
     const currentSlide = presentation.slides.find((slide) => slide.id === slideId);
-    if (!currentSlide) throw new Error("Selected presentation slide was not found.");
+    if (!currentSlide) throw interfaceError("Selected presentation slide was not found.", "ai.selectedSlideNotFound");
 
     const prompt = buildPresentationSlideRefinementPrompt(project, presentation, slideId, currentSlide, instructions);
     const response = await callGemini(prompt);
@@ -192,7 +193,7 @@ const refinePresentation = async (project, currentPresentation, instructions = "
 const translatePresentationSlide = async (project, currentPresentation, slideId) => {
   const presentation = normalizePresentation(currentPresentation, project);
   const currentSlide = presentation.slides.find((slide) => slide.id === slideId);
-  if (!currentSlide) throw new Error("Selected presentation slide is required to translate.");
+  if (!currentSlide) throw interfaceError("Selected presentation slide is required to translate.", "ai.currentPresentationAndSlideIdRequiredToTranslate");
 
   const prompt = buildPresentationSlideTranslationPrompt(project, presentation, slideId, currentSlide);
   const response = await callGemini(prompt, null, { tier: "fast" });

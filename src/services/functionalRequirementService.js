@@ -1,3 +1,4 @@
+const { interfaceError } = require("../lib/interfaceMessages");
 const Project = require("../models/Project");
 const { callGemini } = require("./geminiService");
 const {
@@ -57,12 +58,12 @@ const parseFunctionalRequirementsResponse = (content) => {
   try {
     parsed = JSON.parse(cleaned);
   } catch (error) {
-    throw new Error("AI returned invalid functional requirement JSON. Please try again.");
+    throw interfaceError("AI returned invalid functional requirement JSON. Please try again.", "ai.functionalRequirementGenerationFailed");
   }
 
   const requirements = normalizeFunctionalRequirements(parsed.functionalRequirements);
   if (requirements.length === 0) {
-    throw new Error("AI did not return any valid functional requirements. Please try again.");
+    throw interfaceError("AI did not return any valid functional requirements. Please try again.", "ai.functionalRequirementGenerationFailed");
   }
 
   return requirements;
@@ -72,7 +73,7 @@ const getProjectForUser = async (userId, projectId = null) => {
   const query = projectId ? { _id: projectId, user: userId } : { user: userId };
   const project = await Project.findOne(query);
   if (!project) {
-    throw new Error("Project not found for this user.");
+    throw interfaceError("Project not found for this user.", "project.notFound");
   }
   return project;
 };
@@ -86,7 +87,7 @@ const generateFunctionalRequirements = async (project) => {
 const refineFunctionalRequirements = async (project, currentRequirements, instructions = "") => {
   const requirements = normalizeFunctionalRequirements(currentRequirements);
   if (requirements.length === 0) {
-    throw new Error("Current functional requirements are required to refine.");
+    throw interfaceError("Current functional requirements are required to refine.", "ai.currentFunctionalRequirementsRequiredToRefine");
   }
 
   const prompt = buildFunctionalRequirementRefinementPrompt(project, requirements, instructions);
@@ -97,7 +98,7 @@ const refineFunctionalRequirements = async (project, currentRequirements, instru
 const translateFunctionalRequirements = async (project, currentRequirements) => {
   const requirements = normalizeFunctionalRequirements(currentRequirements);
   if (requirements.length === 0) {
-    throw new Error("Current functional requirements are required to translate.");
+    throw interfaceError("Current functional requirements are required to translate.", "ai.currentFunctionalRequirementsRequiredToTranslate");
   }
 
   const prompt = buildFunctionalRequirementTranslationPrompt(project, requirements);
@@ -124,7 +125,7 @@ const saveFunctionalRequirements = async (userId, projectId, functionalRequireme
   );
 
   if (!project) {
-    throw new Error("Project not found for this user.");
+    throw interfaceError("Project not found for this user.", "project.notFound");
   }
 
   return {

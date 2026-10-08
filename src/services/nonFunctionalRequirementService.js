@@ -1,3 +1,4 @@
+const { interfaceError } = require("../lib/interfaceMessages");
 const Project = require("../models/Project");
 const { callGemini } = require("./geminiService");
 const {
@@ -80,12 +81,12 @@ const parseNonFunctionalRequirementsResponse = (content) => {
     parsed = JSON.parse(cleaned);
   } catch (error) {
     console.error("[nfr] Invalid AI JSON response:", String(content || "").slice(0, 1000));
-    throw new Error("AI returned invalid non-functional requirement JSON. Please try again.");
+    throw interfaceError("AI returned invalid non-functional requirement JSON. Please try again.", "ai.nonFunctionalRequirementGenerationFailed");
   }
 
   const requirements = normalizeNonFunctionalRequirements(getRequirementsPayload(parsed));
   if (requirements.length === 0) {
-    throw new Error("AI did not return any valid non-functional requirements. Please try again.");
+    throw interfaceError("AI did not return any valid non-functional requirements. Please try again.", "ai.nonFunctionalRequirementGenerationFailed");
   }
 
   return requirements;
@@ -95,7 +96,7 @@ const getProjectForUser = async (userId, projectId = null) => {
   const query = projectId ? { _id: projectId, user: userId } : { user: userId };
   const project = await Project.findOne(query);
   if (!project) {
-    throw new Error("Project not found for this user.");
+    throw interfaceError("Project not found for this user.", "project.notFound");
   }
   return project;
 };
@@ -109,7 +110,7 @@ const generateNonFunctionalRequirements = async (project) => {
 const refineNonFunctionalRequirements = async (project, currentRequirements, instructions = "") => {
   const requirements = normalizeNonFunctionalRequirements(currentRequirements);
   if (requirements.length === 0) {
-    throw new Error("Current non-functional requirements are required to refine.");
+    throw interfaceError("Current non-functional requirements are required to refine.", "ai.currentNonFunctionalRequirementsRequiredToRefine");
   }
 
   const prompt = buildNonFunctionalRequirementRefinementPrompt(project, requirements, instructions);
@@ -120,7 +121,7 @@ const refineNonFunctionalRequirements = async (project, currentRequirements, ins
 const translateNonFunctionalRequirements = async (project, currentRequirements) => {
   const requirements = normalizeNonFunctionalRequirements(currentRequirements);
   if (requirements.length === 0) {
-    throw new Error("Current non-functional requirements are required to translate.");
+    throw interfaceError("Current non-functional requirements are required to translate.", "ai.currentNonFunctionalRequirementsRequiredToTranslate");
   }
 
   const prompt = buildNonFunctionalRequirementTranslationPrompt(project, requirements);
@@ -147,7 +148,7 @@ const saveNonFunctionalRequirements = async (userId, projectId, nonFunctionalReq
   );
 
   if (!project) {
-    throw new Error("Project not found for this user.");
+    throw interfaceError("Project not found for this user.", "project.notFound");
   }
 
   return {

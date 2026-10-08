@@ -1,4 +1,5 @@
 const express = require("express");
+const { withMessageMetadata, withErrorMessageMetadata } = require("./lib/interfaceMessages");
 const cors = require("cors");
 const dotenv = require("dotenv");
 
@@ -75,10 +76,10 @@ app.get("/api/health", (req, res) => {
 app.use((err, req, res, next) => {
   if (err.type === "entity.too.large") {
     console.error("[server] PayloadTooLargeError:", err.message);
-    return res.status(413).json({ message: "Request payload too large. Please shorten or optimize your content." });
+    return res.status(413).json(withMessageMetadata({ message: "Request payload too large. Please shorten or optimize your content." }, "common.payloadTooLarge"));
   }
   console.error("[server] Unhandled Error:", err.message);
-  res.status(err.status || 500).json({ message: err.message || "Internal server error" });
+  res.status(err.status || 500).json(withErrorMessageMetadata({ message: err.message || "Internal server error" }, err, "common.internalServerError"));
 });
 
 app.get("/", (req, res) => {

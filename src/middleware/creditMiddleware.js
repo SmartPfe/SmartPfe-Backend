@@ -5,14 +5,16 @@ const {
   settleCreditCharge,
   refundCreditCharge,
 } = require("../services/creditService");
+const { withCreditErrorMetadata, withMessageMetadata } = require("../lib/interfaceMessages");
 
 const sendCreditError = (error, res, next) => {
   if (!(error instanceof CreditError)) return next(error);
-  return res.status(error.status || 400).json({
+  const response = withCreditErrorMetadata({
     message: error.message,
     code: error.code,
     ...error.details,
-  });
+  }, error);
+  return res.status(error.status || 400).json(response);
 };
 
 const normalizeResolution = (resolution) => {
@@ -70,10 +72,10 @@ const creditGate = (actionResolver, options = {}) => async (req, res, next) => {
           await refundCreditCharge(charge, "Credit settlement failed").catch(() => {});
           if (!res.headersSent) {
             res.status(500);
-            originalJson({
+            originalJson(withMessageMetadata({
               message: "The AI action finished, but its credit record could not be finalized. No charge was kept.",
               code: "CREDIT_SETTLEMENT_FAILED",
-            });
+            }, "credits.settlementFailed"));
           }
           console.error("[credits] Settlement failed:", error.message);
         });

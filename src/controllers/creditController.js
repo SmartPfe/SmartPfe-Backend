@@ -4,14 +4,15 @@ const {
   listTransactions,
   CreditError,
 } = require("../services/creditService");
+const { withErrorMessageMetadata } = require("../lib/interfaceMessages");
 
-const sendError = (res, error, fallback) => {
+const sendError = (res, error, fallback, fallbackKey) => {
   const status = error instanceof CreditError ? error.status : 500;
-  return res.status(status).json({
+  return res.status(status).json(withErrorMessageMetadata({
     message: error.message || fallback,
     ...(error.code ? { code: error.code } : {}),
     ...(error.details || {}),
-  });
+  }, error, fallbackKey));
 };
 
 const getMyWallet = async (req, res) => {
@@ -20,7 +21,7 @@ const getMyWallet = async (req, res) => {
     res.status(200).json({ wallet });
   } catch (error) {
     console.error("[credits] get wallet error:", error.message);
-    sendError(res, error, "Failed to load credit wallet.");
+    sendError(res, error, "Failed to load credit wallet.", "credits.loadWalletFailed");
   }
 };
 
@@ -40,7 +41,7 @@ const getCatalog = async (req, res) => {
     });
   } catch (error) {
     console.error("[credits] get catalog error:", error.message);
-    sendError(res, error, "Failed to load credit prices.");
+    sendError(res, error, "Failed to load credit prices.", "credits.loadCatalogFailed");
   }
 };
 
@@ -54,7 +55,7 @@ const getMyTransactions = async (req, res) => {
     res.status(200).json(result);
   } catch (error) {
     console.error("[credits] get transactions error:", error.message);
-    sendError(res, error, "Failed to load credit history.");
+    sendError(res, error, "Failed to load credit history.", "credits.loadHistoryFailed");
   }
 };
 

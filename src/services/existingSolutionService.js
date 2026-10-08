@@ -1,3 +1,4 @@
+const { interfaceError } = require("../lib/interfaceMessages");
 const Project = require("../models/Project");
 const { callGemini } = require("./geminiService");
 const {
@@ -47,12 +48,12 @@ const parseExistingSolutionsResponse = (content) => {
   try {
     parsed = JSON.parse(cleaned);
   } catch (error) {
-    throw new Error("AI returned invalid existing solution JSON. Please try again.");
+    throw interfaceError("AI returned invalid existing solution JSON. Please try again.", "ai.existingSolutionGenerationFailed");
   }
 
   const solutions = normalizeExistingSolutions(parsed.existingSolutions);
   if (solutions.length === 0) {
-    throw new Error("AI did not return any valid existing solutions. Please try again.");
+    throw interfaceError("AI did not return any valid existing solutions. Please try again.", "ai.existingSolutionGenerationFailed");
   }
 
   return solutions;
@@ -62,7 +63,7 @@ const getProjectForUser = async (userId, projectId = null) => {
   const query = projectId ? { _id: projectId, user: userId } : { user: userId };
   const project = await Project.findOne(query);
   if (!project) {
-    throw new Error("Project not found for this user.");
+    throw interfaceError("Project not found for this user.", "project.notFound");
   }
   return project;
 };
@@ -76,7 +77,7 @@ const generateExistingSolutions = async (project) => {
 const refineExistingSolutions = async (project, currentSolutions, instructions = "") => {
   const solutions = normalizeExistingSolutions(currentSolutions);
   if (solutions.length === 0) {
-    throw new Error("Current existing solutions are required to refine.");
+    throw interfaceError("Current existing solutions are required to refine.", "ai.currentSolutionsRequiredToRefine");
   }
 
   const prompt = buildExistingSolutionRefinementPrompt(project, solutions, instructions);
@@ -87,7 +88,7 @@ const refineExistingSolutions = async (project, currentSolutions, instructions =
 const translateExistingSolutions = async (project, currentSolutions) => {
   const solutions = normalizeExistingSolutions(currentSolutions);
   if (solutions.length === 0) {
-    throw new Error("Current existing solutions are required to translate.");
+    throw interfaceError("Current existing solutions are required to translate.", "ai.currentSolutionsRequiredToTranslate");
   }
 
   const prompt = buildExistingSolutionTranslationPrompt(project, solutions);
@@ -114,7 +115,7 @@ const saveExistingSolutions = async (userId, projectId, existingSolutions, langu
   );
 
   if (!project) {
-    throw new Error("Project not found for this user.");
+    throw interfaceError("Project not found for this user.", "project.notFound");
   }
 
   return {

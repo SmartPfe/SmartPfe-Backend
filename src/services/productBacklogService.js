@@ -1,3 +1,4 @@
+const { interfaceError } = require("../lib/interfaceMessages");
 const Project = require("../models/Project");
 const { callGemini } = require("./geminiService");
 const {
@@ -138,12 +139,12 @@ const parseProductBacklogResponse = (content, project) => {
   try {
     parsed = JSON.parse(cleaned);
   } catch (error) {
-    throw new Error("AI returned invalid product backlog JSON. Please try again.");
+    throw interfaceError("AI returned invalid product backlog JSON. Please try again.", "ai.productBacklogGenerationFailed");
   }
 
   const productBacklog = normalizeProductBacklog(Array.isArray(parsed) ? parsed : parsed.productBacklog, project);
   if (productBacklog.length === 0) {
-    throw new Error("AI did not return any valid product backlog tasks. Please try again.");
+    throw interfaceError("AI did not return any valid product backlog tasks. Please try again.", "ai.productBacklogGenerationFailed");
   }
 
   return productBacklog;
@@ -207,7 +208,7 @@ const getProjectForUser = async (userId, projectId = null) => {
   const query = projectId ? { _id: projectId, user: userId } : { user: userId };
   const project = await Project.findOne(query);
   if (!project) {
-    throw new Error("Project not found for this user.");
+    throw interfaceError("Project not found for this user.", "project.notFound");
   }
   return project;
 };
@@ -221,7 +222,7 @@ const generateProductBacklog = async (project) => {
 const refineProductBacklog = async (project, currentBacklog, instructions = "") => {
   const productBacklog = normalizeProductBacklog(currentBacklog, project);
   if (productBacklog.length === 0) {
-    throw new Error("Current product backlog is required to refine.");
+    throw interfaceError("Current product backlog is required to refine.", "ai.currentProductBacklogRequiredToRefine");
   }
 
   const prompt = buildProductBacklogRefinementPrompt(project, productBacklog, instructions);
@@ -232,7 +233,7 @@ const refineProductBacklog = async (project, currentBacklog, instructions = "") 
 const translateProductBacklog = async (project, currentBacklog) => {
   const productBacklog = normalizeProductBacklog(currentBacklog, project);
   if (productBacklog.length === 0) {
-    throw new Error("Current product backlog is required to translate.");
+    throw interfaceError("Current product backlog is required to translate.", "ai.currentProductBacklogRequiredToTranslate");
   }
 
   const prompt = buildProductBacklogTranslationPrompt(project, productBacklog);
@@ -260,7 +261,7 @@ const saveProductBacklog = async (userId, projectId, productBacklog, language) =
   );
 
   if (!project) {
-    throw new Error("Project not found for this user.");
+    throw interfaceError("Project not found for this user.", "project.notFound");
   }
 
   return {

@@ -2,6 +2,7 @@ const User = require("../models/User");
 const Project = require("../models/Project");
 const CreditWallet = require("../models/CreditWallet");
 const CreditTransaction = require("../models/CreditTransaction");
+const { withMessageMetadata } = require("../lib/interfaceMessages");
 
 function getLastMonths(count = 6) {
   const months = [];
@@ -149,7 +150,7 @@ const getDashboardStats = async (req, res) => {
     });
   } catch (error) {
     console.error("[admin] getDashboardStats error:", error.message);
-    res.status(500).json({ message: "Server error", error: error.message });
+    res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
   }
 };
 
@@ -177,7 +178,7 @@ const getUsers = async (req, res) => {
     }));
   } catch (error) {
     console.error("[admin] getUsers error:", error.message);
-    res.status(500).json({ message: "Server error", error: error.message });
+    res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
   }
 };
 
@@ -191,7 +192,7 @@ const getProjects = async (req, res) => {
     res.status(200).json(projects);
   } catch (error) {
     console.error("[admin] getProjects error:", error.message);
-    res.status(500).json({ message: "Server error", error: error.message });
+    res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
   }
 };
 

@@ -1,4 +1,5 @@
 const Project = require("../models/Project");
+const { withMessageMetadata, withErrorMessageMetadata } = require("../lib/interfaceMessages");
 const { callAI } = require("../services/geminiService");
 const {
   generateActors: generateActorsService,
@@ -79,7 +80,7 @@ const generateProblemStatement = async (req, res) => {
   try {
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const suggestion = await callAI("generate", project);
@@ -87,7 +88,7 @@ const generateProblemStatement = async (req, res) => {
     res.status(200).json({ suggestion });
   } catch (error) {
     console.error("[ai] generate error:", error.message);
-    res.status(500).json({ message: error.message || "AI generation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI generation failed." }, error, "ai.generationFailed"));
   }
 };
 
@@ -98,19 +99,19 @@ const refineProblemStatement = async (req, res) => {
   try {
     const { current, instructions } = req.body;
     if (!current || current.trim() === "") {
-      return res.status(400).json({ message: "Current text is required to refine." });
+      return res.status(400).json(withMessageMetadata({ message: "Current text is required to refine." }, "ai.currentTextRequiredToRefine"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const suggestion = await callAI("refine", project, current, { instructions });
     res.status(200).json({ suggestion });
   } catch (error) {
     console.error("[ai] refine error:", error.message);
-    res.status(500).json({ message: error.message || "AI refinement failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI refinement failed." }, error, "ai.refinementFailed"));
   }
 };
 
@@ -121,19 +122,19 @@ const translateProblemStatement = async (req, res) => {
   try {
     const { current } = req.body;
     if (!current || current.trim() === "") {
-      return res.status(400).json({ message: "Current text is required to translate." });
+      return res.status(400).json(withMessageMetadata({ message: "Current text is required to translate." }, "ai.currentTextRequiredToTranslate"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const suggestion = await callAI("translate", project, current);
     res.status(200).json({ suggestion });
   } catch (error) {
     console.error("[ai] translate error:", error.message);
-    res.status(500).json({ message: error.message || "AI translation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI translation failed." }, error, "ai.translationFailed"));
   }
 };
 
@@ -144,7 +145,7 @@ const generateActors = async (req, res) => {
   try {
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const actors = await generateActorsService(project);
@@ -152,7 +153,7 @@ const generateActors = async (req, res) => {
     res.status(200).json({ actors });
   } catch (error) {
     console.error("[ai] generate actors error:", error.message);
-    res.status(500).json({ message: error.message || "AI actor generation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI actor generation failed." }, error, "ai.actorGenerationFailed"));
   }
 };
 
@@ -163,19 +164,19 @@ const refineActors = async (req, res) => {
   try {
     const { actors, instructions } = req.body;
     if (!Array.isArray(actors) || actors.length === 0) {
-      return res.status(400).json({ message: "Current actors are required to refine." });
+      return res.status(400).json(withMessageMetadata({ message: "Current actors are required to refine." }, "ai.currentActorsRequiredToRefine"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const refinedActors = await refineActorsService(project, actors, instructions);
     res.status(200).json({ actors: refinedActors });
   } catch (error) {
     console.error("[ai] refine actors error:", error.message);
-    res.status(500).json({ message: error.message || "AI actor refinement failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI actor refinement failed." }, error, "ai.actorRefinementFailed"));
   }
 };
 
@@ -186,19 +187,19 @@ const translateActors = async (req, res) => {
   try {
     const { actors } = req.body;
     if (!Array.isArray(actors) || actors.length === 0) {
-      return res.status(400).json({ message: "Current actors are required to translate." });
+      return res.status(400).json(withMessageMetadata({ message: "Current actors are required to translate." }, "ai.currentActorsRequiredToTranslate"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const translatedActors = await translateActorsService(project, actors);
     res.status(200).json({ actors: translatedActors });
   } catch (error) {
     console.error("[ai] translate actors error:", error.message);
-    res.status(500).json({ message: error.message || "AI actor translation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI actor translation failed." }, error, "ai.actorTranslationFailed"));
   }
 };
 
@@ -209,7 +210,7 @@ const generateExistingSolutions = async (req, res) => {
   try {
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const existingSolutions = await generateExistingSolutionsService(project);
@@ -217,7 +218,7 @@ const generateExistingSolutions = async (req, res) => {
     res.status(200).json({ existingSolutions });
   } catch (error) {
     console.error("[ai] generate existing solutions error:", error.message);
-    res.status(500).json({ message: error.message || "AI existing solution generation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI existing solution generation failed." }, error, "ai.existingSolutionGenerationFailed"));
   }
 };
 
@@ -228,19 +229,19 @@ const refineExistingSolutions = async (req, res) => {
   try {
     const { existingSolutions, instructions } = req.body;
     if (!Array.isArray(existingSolutions) || existingSolutions.length === 0) {
-      return res.status(400).json({ message: "Current existing solutions are required to refine." });
+      return res.status(400).json(withMessageMetadata({ message: "Current existing solutions are required to refine." }, "ai.currentSolutionsRequiredToRefine"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const refinedSolutions = await refineExistingSolutionsService(project, existingSolutions, instructions);
     res.status(200).json({ existingSolutions: refinedSolutions });
   } catch (error) {
     console.error("[ai] refine existing solutions error:", error.message);
-    res.status(500).json({ message: error.message || "AI existing solution refinement failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI existing solution refinement failed." }, error, "ai.existingSolutionRefinementFailed"));
   }
 };
 
@@ -251,19 +252,19 @@ const translateExistingSolutions = async (req, res) => {
   try {
     const { existingSolutions } = req.body;
     if (!Array.isArray(existingSolutions) || existingSolutions.length === 0) {
-      return res.status(400).json({ message: "Current existing solutions are required to translate." });
+      return res.status(400).json(withMessageMetadata({ message: "Current existing solutions are required to translate." }, "ai.currentSolutionsRequiredToTranslate"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const translatedSolutions = await translateExistingSolutionsService(project, existingSolutions);
     res.status(200).json({ existingSolutions: translatedSolutions });
   } catch (error) {
     console.error("[ai] translate existing solutions error:", error.message);
-    res.status(500).json({ message: error.message || "AI existing solution translation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI existing solution translation failed." }, error, "ai.existingSolutionTranslationFailed"));
   }
 };
 
@@ -274,7 +275,7 @@ const generateFunctionalRequirements = async (req, res) => {
   try {
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const functionalRequirements = await generateFunctionalRequirementsService(project);
@@ -282,7 +283,7 @@ const generateFunctionalRequirements = async (req, res) => {
     res.status(200).json({ functionalRequirements });
   } catch (error) {
     console.error("[ai] generate functional requirements error:", error.message);
-    res.status(500).json({ message: error.message || "AI functional requirement generation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI functional requirement generation failed." }, error, "ai.functionalRequirementGenerationFailed"));
   }
 };
 
@@ -293,19 +294,19 @@ const refineFunctionalRequirements = async (req, res) => {
   try {
     const { functionalRequirements, instructions } = req.body;
     if (!Array.isArray(functionalRequirements) || functionalRequirements.length === 0) {
-      return res.status(400).json({ message: "Current functional requirements are required to refine." });
+      return res.status(400).json(withMessageMetadata({ message: "Current functional requirements are required to refine." }, "ai.currentFunctionalRequirementsRequiredToRefine"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const refinedRequirements = await refineFunctionalRequirementsService(project, functionalRequirements, instructions);
     res.status(200).json({ functionalRequirements: refinedRequirements });
   } catch (error) {
     console.error("[ai] refine functional requirements error:", error.message);
-    res.status(500).json({ message: error.message || "AI functional requirement refinement failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI functional requirement refinement failed." }, error, "ai.functionalRequirementRefinementFailed"));
   }
 };
 
@@ -316,19 +317,19 @@ const translateFunctionalRequirements = async (req, res) => {
   try {
     const { functionalRequirements } = req.body;
     if (!Array.isArray(functionalRequirements) || functionalRequirements.length === 0) {
-      return res.status(400).json({ message: "Current functional requirements are required to translate." });
+      return res.status(400).json(withMessageMetadata({ message: "Current functional requirements are required to translate." }, "ai.currentFunctionalRequirementsRequiredToTranslate"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const translatedRequirements = await translateFunctionalRequirementsService(project, functionalRequirements);
     res.status(200).json({ functionalRequirements: translatedRequirements });
   } catch (error) {
     console.error("[ai] translate functional requirements error:", error.message);
-    res.status(500).json({ message: error.message || "AI functional requirement translation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI functional requirement translation failed." }, error, "ai.functionalRequirementTranslationFailed"));
   }
 };
 
@@ -339,7 +340,7 @@ const generateNonFunctionalRequirements = async (req, res) => {
   try {
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const nonFunctionalRequirements = await generateNonFunctionalRequirementsService(project);
@@ -347,7 +348,7 @@ const generateNonFunctionalRequirements = async (req, res) => {
     res.status(200).json({ nonFunctionalRequirements });
   } catch (error) {
     console.error("[ai] generate non-functional requirements error:", error.message);
-    res.status(500).json({ message: error.message || "AI non-functional requirement generation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI non-functional requirement generation failed." }, error, "ai.nonFunctionalRequirementGenerationFailed"));
   }
 };
 
@@ -358,19 +359,19 @@ const refineNonFunctionalRequirements = async (req, res) => {
   try {
     const { nonFunctionalRequirements, instructions } = req.body;
     if (!Array.isArray(nonFunctionalRequirements) || nonFunctionalRequirements.length === 0) {
-      return res.status(400).json({ message: "Current non-functional requirements are required to refine." });
+      return res.status(400).json(withMessageMetadata({ message: "Current non-functional requirements are required to refine." }, "ai.currentNonFunctionalRequirementsRequiredToRefine"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const refinedRequirements = await refineNonFunctionalRequirementsService(project, nonFunctionalRequirements, instructions);
     res.status(200).json({ nonFunctionalRequirements: refinedRequirements });
   } catch (error) {
     console.error("[ai] refine non-functional requirements error:", error.message);
-    res.status(500).json({ message: error.message || "AI non-functional requirement refinement failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI non-functional requirement refinement failed." }, error, "ai.nonFunctionalRequirementRefinementFailed"));
   }
 };
 
@@ -381,19 +382,19 @@ const translateNonFunctionalRequirements = async (req, res) => {
   try {
     const { nonFunctionalRequirements } = req.body;
     if (!Array.isArray(nonFunctionalRequirements) || nonFunctionalRequirements.length === 0) {
-      return res.status(400).json({ message: "Current non-functional requirements are required to translate." });
+      return res.status(400).json(withMessageMetadata({ message: "Current non-functional requirements are required to translate." }, "ai.currentNonFunctionalRequirementsRequiredToTranslate"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const translatedRequirements = await translateNonFunctionalRequirementsService(project, nonFunctionalRequirements);
     res.status(200).json({ nonFunctionalRequirements: translatedRequirements });
   } catch (error) {
     console.error("[ai] translate non-functional requirements error:", error.message);
-    res.status(500).json({ message: error.message || "AI non-functional requirement translation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI non-functional requirement translation failed." }, error, "ai.nonFunctionalRequirementTranslationFailed"));
   }
 };
 
@@ -404,7 +405,7 @@ const generateProductBacklog = async (req, res) => {
   try {
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const productBacklog = await generateProductBacklogService(project);
@@ -412,7 +413,7 @@ const generateProductBacklog = async (req, res) => {
     res.status(200).json({ productBacklog });
   } catch (error) {
     console.error("[ai] generate product backlog error:", error.message);
-    res.status(500).json({ message: error.message || "AI product backlog generation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI product backlog generation failed." }, error, "ai.productBacklogGenerationFailed"));
   }
 };
 
@@ -423,19 +424,19 @@ const refineProductBacklog = async (req, res) => {
   try {
     const { productBacklog, instructions } = req.body;
     if (!Array.isArray(productBacklog) || productBacklog.length === 0) {
-      return res.status(400).json({ message: "Current product backlog is required to refine." });
+      return res.status(400).json(withMessageMetadata({ message: "Current product backlog is required to refine." }, "ai.currentProductBacklogRequiredToRefine"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const refinedBacklog = await refineProductBacklogService(project, productBacklog, instructions);
     res.status(200).json({ productBacklog: refinedBacklog });
   } catch (error) {
     console.error("[ai] refine product backlog error:", error.message);
-    res.status(500).json({ message: error.message || "AI product backlog refinement failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI product backlog refinement failed." }, error, "ai.productBacklogRefinementFailed"));
   }
 };
 
@@ -446,19 +447,19 @@ const translateProductBacklog = async (req, res) => {
   try {
     const { productBacklog } = req.body;
     if (!Array.isArray(productBacklog) || productBacklog.length === 0) {
-      return res.status(400).json({ message: "Current product backlog is required to translate." });
+      return res.status(400).json(withMessageMetadata({ message: "Current product backlog is required to translate." }, "ai.currentProductBacklogRequiredToTranslate"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const translatedBacklog = await translateProductBacklogService(project, productBacklog);
     res.status(200).json({ productBacklog: translatedBacklog });
   } catch (error) {
     console.error("[ai] translate product backlog error:", error.message);
-    res.status(500).json({ message: error.message || "AI product backlog translation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI product backlog translation failed." }, error, "ai.productBacklogTranslationFailed"));
   }
 };
 
@@ -471,7 +472,7 @@ const generateReportStructure = async (req, res) => {
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
       console.warn(`[ai][report-structure][generate] No project found. user=${req.user?._id || "unknown"}`);
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     console.info(
@@ -483,7 +484,7 @@ const generateReportStructure = async (req, res) => {
     res.status(200).json({ reportStructure });
   } catch (error) {
     console.error("[ai] generate report structure error:", error.message);
-    res.status(500).json({ message: error.message || "AI report structure generation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI report structure generation failed." }, error, "ai.reportStructureGenerationFailed"));
   }
 };
 
@@ -496,13 +497,13 @@ const refineReportStructure = async (req, res) => {
     const { reportStructure, instructions } = req.body;
     if (!Array.isArray(reportStructure) || reportStructure.length === 0) {
       console.warn("[ai][report-structure][refine] Rejected: current report structure is missing.");
-      return res.status(400).json({ message: "Current report structure is required to refine." });
+      return res.status(400).json(withMessageMetadata({ message: "Current report structure is required to refine." }, "ai.currentReportStructureRequiredToRefine"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
       console.warn(`[ai][report-structure][refine] No project found. user=${req.user?._id || "unknown"}`);
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     console.info(
@@ -513,7 +514,7 @@ const refineReportStructure = async (req, res) => {
     res.status(200).json({ reportStructure: refinedStructure });
   } catch (error) {
     console.error("[ai] refine report structure error:", error.message);
-    res.status(500).json({ message: error.message || "AI report structure refinement failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI report structure refinement failed." }, error, "ai.reportStructureRefinementFailed"));
   }
 };
 
@@ -524,19 +525,19 @@ const translateReportStructure = async (req, res) => {
   try {
     const { reportStructure } = req.body;
     if (!Array.isArray(reportStructure) || reportStructure.length === 0) {
-      return res.status(400).json({ message: "Current report structure is required to translate." });
+      return res.status(400).json(withMessageMetadata({ message: "Current report structure is required to translate." }, "ai.currentReportStructureRequiredToTranslate"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const translatedStructure = await translateReportStructureService(project, reportStructure);
     res.status(200).json({ reportStructure: translatedStructure });
   } catch (error) {
     console.error("[ai] translate report structure error:", error.message);
-    res.status(500).json({ message: error.message || "AI report structure translation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI report structure translation failed." }, error, "ai.reportStructureTranslationFailed"));
   }
 };
 
@@ -547,12 +548,12 @@ const generateReportChapter = async (req, res) => {
   try {
     const { sectionId, detailLevel = "standard", reportChapters = [] } = req.body;
     if (!sectionId) {
-      return res.status(400).json({ message: "Section id is required." });
+      return res.status(400).json(withMessageMetadata({ message: "Section id is required." }, "ai.sectionIdRequired"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const chapter = await generateReportChapterService(project, sectionId, detailLevel, reportChapters);
@@ -560,7 +561,7 @@ const generateReportChapter = async (req, res) => {
     res.status(200).json({ chapter });
   } catch (error) {
     console.error("[ai] generate report chapter error:", error.message);
-    res.status(500).json({ message: error.message || "AI report chapter generation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI report chapter generation failed." }, error, "ai.reportChapterGenerationFailed"));
   }
 };
 
@@ -571,19 +572,19 @@ const generateReportChapterStream = async (req, res) => {
   try {
     const { sectionId, detailLevel = "standard", reportChapters = [] } = req.body;
     if (!sectionId) {
-      return res.status(400).json({ message: "Section id is required." });
+      return res.status(400).json(withMessageMetadata({ message: "Section id is required." }, "ai.sectionIdRequired"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     await generateReportChapterStreamService(project, sectionId, detailLevel, reportChapters, res, req);
   } catch (error) {
     console.error("[ai] generate report chapter stream error:", error.message);
     if (!res.headersSent) {
-      res.status(500).json({ message: error.message || "AI streaming chapter generation failed." });
+      res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI streaming chapter generation failed." }, error, "ai.streamingChapterGenerationFailed"));
     }
   }
 };
@@ -595,12 +596,12 @@ const applyReportChapterAction = async (req, res) => {
   try {
     const { sectionId, action, currentContent, selectedText = "", reportChapters = [], instructions = "" } = req.body;
     if (!sectionId || !action || !currentContent) {
-      return res.status(400).json({ message: "Section id, action, and current content are required." });
+      return res.status(400).json(withMessageMetadata({ message: "Section id, action, and current content are required." }, "ai.sectionActionAndContentRequired"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const chapter = await applyReportChapterActionService(
@@ -615,7 +616,7 @@ const applyReportChapterAction = async (req, res) => {
     res.status(200).json({ chapter });
   } catch (error) {
     console.error("[ai] apply report chapter action error:", error.message);
-    res.status(500).json({ message: error.message || "AI report chapter action failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI report chapter action failed." }, error, "ai.reportChapterActionFailed"));
   }
 };
 
@@ -627,7 +628,7 @@ const generateCompleteReport = async (req, res) => {
     const { reportChapters = [] } = req.body;
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const finalReport = await generateCompleteReportService(project, reportChapters);
@@ -640,7 +641,7 @@ const generateCompleteReport = async (req, res) => {
     res.status(200).json({ finalReport: savedFinalReport });
   } catch (error) {
     console.error("[ai] generate complete report error:", error.message);
-    res.status(500).json({ message: error.message || "AI final report generation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI final report generation failed." }, error, "ai.finalReportGenerationFailed"));
   }
 };
 
@@ -651,7 +652,7 @@ const generateUmlPreparation = async (req, res) => {
   try {
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const { diagramType, currentUmlPreparation } = req.body || {};
@@ -660,7 +661,7 @@ const generateUmlPreparation = async (req, res) => {
     res.status(200).json({ umlPreparation });
   } catch (error) {
     console.error("[ai] generate UML preparation error:", error.message);
-    res.status(500).json({ message: error.message || "AI UML preparation generation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI UML preparation generation failed." }, error, "ai.umlPreparationGenerationFailed"));
   }
 };
 
@@ -671,19 +672,19 @@ const refineUmlPreparation = async (req, res) => {
   try {
     const { umlPreparation, instructions, diagramType } = req.body;
     if (!umlPreparation) {
-      return res.status(400).json({ message: "Current UML preparation is required to refine." });
+      return res.status(400).json(withMessageMetadata({ message: "Current UML preparation is required to refine." }, "ai.currentUmlPreparationRequiredToRefine"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const refinedPreparation = await refineUmlPreparationService(project, umlPreparation, instructions, diagramType);
     res.status(200).json({ umlPreparation: refinedPreparation });
   } catch (error) {
     console.error("[ai] refine UML preparation error:", error.message);
-    res.status(500).json({ message: error.message || "AI UML preparation refinement failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI UML preparation refinement failed." }, error, "ai.umlPreparationRefinementFailed"));
   }
 };
 
@@ -694,19 +695,19 @@ const translateUmlPreparation = async (req, res) => {
   try {
     const { umlPreparation } = req.body;
     if (!umlPreparation || !Array.isArray(umlPreparation.classes) || umlPreparation.classes.length === 0) {
-      return res.status(400).json({ message: "Current UML preparation is required to translate." });
+      return res.status(400).json(withMessageMetadata({ message: "Current UML preparation is required to translate." }, "ai.currentUmlPreparationRequiredToTranslate"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const translatedPreparation = await translateUmlPreparationService(project, umlPreparation);
     res.status(200).json({ umlPreparation: translatedPreparation });
   } catch (error) {
     console.error("[ai] translate UML preparation error:", error.message);
-    res.status(500).json({ message: error.message || "AI UML preparation translation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI UML preparation translation failed." }, error, "ai.umlPreparationTranslationFailed"));
   }
 };
 
@@ -718,7 +719,7 @@ const generatePresentation = async (req, res) => {
     const { durationMinutes = 10 } = req.body;
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const presentation = await generatePresentationService(project, durationMinutes);
@@ -726,7 +727,7 @@ const generatePresentation = async (req, res) => {
     res.status(200).json({ presentation });
   } catch (error) {
     console.error("[ai] generate presentation error:", error.message);
-    res.status(500).json({ message: error.message || "AI presentation generation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI presentation generation failed." }, error, "ai.presentationGenerationFailed"));
   }
 };
 
@@ -737,19 +738,19 @@ const refinePresentation = async (req, res) => {
   try {
     const { presentation, instructions = "", slideId = "" } = req.body;
     if (!presentation || !Array.isArray(presentation.slides) || presentation.slides.length === 0) {
-      return res.status(400).json({ message: "Current presentation is required to refine." });
+      return res.status(400).json(withMessageMetadata({ message: "Current presentation is required to refine." }, "ai.currentPresentationRequiredToRefine"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const refinedPresentation = await refinePresentationService(project, presentation, instructions, slideId);
     res.status(200).json({ presentation: refinedPresentation });
   } catch (error) {
     console.error("[ai] refine presentation error:", error.message);
-    res.status(500).json({ message: error.message || "AI presentation refinement failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI presentation refinement failed." }, error, "ai.presentationRefinementFailed"));
   }
 };
 
@@ -760,19 +761,19 @@ const translatePresentation = async (req, res) => {
   try {
     const { presentation, slideId } = req.body;
     if (!presentation || !Array.isArray(presentation.slides) || presentation.slides.length === 0 || !slideId) {
-      return res.status(400).json({ message: "Current presentation and slide id are required to translate." });
+      return res.status(400).json(withMessageMetadata({ message: "Current presentation and slide id are required to translate." }, "ai.currentPresentationAndSlideIdRequiredToTranslate"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const translatedPresentation = await translatePresentationSlideService(project, presentation, slideId);
     res.status(200).json({ presentation: translatedPresentation });
   } catch (error) {
     console.error("[ai] translate presentation error:", error.message);
-    res.status(500).json({ message: error.message || "AI presentation translation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI presentation translation failed." }, error, "ai.presentationTranslationFailed"));
   }
 };
 
@@ -783,7 +784,7 @@ const generatePitch = async (req, res) => {
   try {
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const pitch = await generatePitchService(project);
@@ -791,7 +792,7 @@ const generatePitch = async (req, res) => {
     res.status(200).json({ pitch });
   } catch (error) {
     console.error("[ai] generate pitch error:", error.message);
-    res.status(500).json({ message: error.message || "AI pitch generation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI pitch generation failed." }, error, "ai.pitchGenerationFailed"));
   }
 };
 
@@ -802,19 +803,19 @@ const refinePitch = async (req, res) => {
   try {
     const { pitch, instructions = "" } = req.body;
     if (!pitch || !Array.isArray(pitch.slides) || pitch.slides.length === 0) {
-      return res.status(400).json({ message: "Current pitch is required to refine." });
+      return res.status(400).json(withMessageMetadata({ message: "Current pitch is required to refine." }, "ai.currentPitchRequiredToRefine"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const refinedPitch = await refinePitchService(project, pitch, instructions);
     res.status(200).json({ pitch: refinedPitch });
   } catch (error) {
     console.error("[ai] refine pitch error:", error.message);
-    res.status(500).json({ message: error.message || "AI pitch refinement failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI pitch refinement failed." }, error, "ai.pitchRefinementFailed"));
   }
 };
 
@@ -825,12 +826,12 @@ const generatePitchSlide = async (req, res) => {
   try {
     const { pitch, slideId } = req.body;
     if (!slideId) {
-      return res.status(400).json({ message: "Slide id is required." });
+      return res.status(400).json(withMessageMetadata({ message: "Slide id is required." }, "ai.slideIdRequired"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const nextPitch = await generatePitchSlideService(project, pitch || {}, slideId);
@@ -838,7 +839,7 @@ const generatePitchSlide = async (req, res) => {
     res.status(200).json({ pitch: nextPitch });
   } catch (error) {
     console.error("[ai] generate pitch slide error:", error.message);
-    res.status(500).json({ message: error.message || "AI slide speech generation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI slide speech generation failed." }, error, "ai.slideSpeechGenerationFailed"));
   }
 };
 
@@ -849,19 +850,19 @@ const refinePitchSlide = async (req, res) => {
   try {
     const { pitch, slideId, instructions = "" } = req.body;
     if (!pitch || !Array.isArray(pitch.slides) || pitch.slides.length === 0 || !slideId) {
-      return res.status(400).json({ message: "Current pitch and slide id are required to refine." });
+      return res.status(400).json(withMessageMetadata({ message: "Current pitch and slide id are required to refine." }, "ai.currentPitchAndSlideIdRequiredToRefine"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const nextPitch = await refinePitchSlideService(project, pitch, slideId, instructions);
     res.status(200).json({ pitch: nextPitch });
   } catch (error) {
     console.error("[ai] refine pitch slide error:", error.message);
-    res.status(500).json({ message: error.message || "AI slide speech refinement failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI slide speech refinement failed." }, error, "ai.slideSpeechRefinementFailed"));
   }
 };
 
@@ -872,19 +873,19 @@ const translatePitchSlide = async (req, res) => {
   try {
     const { pitch, slideId } = req.body;
     if (!pitch || !Array.isArray(pitch.slides) || pitch.slides.length === 0 || !slideId) {
-      return res.status(400).json({ message: "Current pitch and slide id are required to translate." });
+      return res.status(400).json(withMessageMetadata({ message: "Current pitch and slide id are required to translate." }, "ai.currentPitchAndSlideIdRequiredToTranslate"));
     }
 
     const project = await Project.findOne({ user: req.user._id });
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user." });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user." }, "project.notFound"));
     }
 
     const nextPitch = await translatePitchSlideService(project, pitch, slideId);
     res.status(200).json({ pitch: nextPitch });
   } catch (error) {
     console.error("[ai] translate pitch slide error:", error.message);
-    res.status(500).json({ message: error.message || "AI slide speech translation failed." });
+    res.status(500).json(withErrorMessageMetadata({ message: error.message || "AI slide speech translation failed." }, error, "ai.slideSpeechTranslationFailed"));
   }
 };
 
@@ -895,7 +896,7 @@ const analyzeJurySimulation = async (req, res) => {
   try {
     const { projectId, actualSeconds } = req.body;
     if (!projectId) {
-      return res.status(400).json({ message: "Project id is required." });
+      return res.status(400).json(withMessageMetadata({ message: "Project id is required." }, "ai.projectIdRequired"));
     }
 
     let objectiveMetrics = {};
@@ -945,7 +946,7 @@ const analyzeJurySimulation = async (req, res) => {
   } catch (error) {
     console.error("[ai] analyze jury simulation error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "AI jury simulation analysis failed." });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "AI jury simulation analysis failed." }, error, "ai.jurySimulationAnalysisFailed"));
   }
 };
 
@@ -956,7 +957,7 @@ const generateJuryQA = async (req, res) => {
   try {
     const { projectId, juryAttemptId, presentation = null, pitch = null } = req.body;
     if (!projectId || !juryAttemptId) {
-      return res.status(400).json({ message: "Project id and jury attempt id are required." });
+      return res.status(400).json(withMessageMetadata({ message: "Project id and jury attempt id are required." }, "ai.projectAndAttemptIdRequired"));
     }
 
     const payload = await generateJuryQAService({
@@ -971,7 +972,7 @@ const generateJuryQA = async (req, res) => {
   } catch (error) {
     console.error("[ai] generate jury Q&A error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "AI jury question generation failed." });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "AI jury question generation failed." }, error, "ai.juryQuestionGenerationFailed"));
   }
 };
 
@@ -982,7 +983,7 @@ const answerJuryQAQuestion = async (req, res) => {
   try {
     const { projectId, questionId, durationSeconds } = req.body;
     if (!projectId || !questionId) {
-      return res.status(400).json({ message: "Project id and question id are required." });
+      return res.status(400).json(withMessageMetadata({ message: "Project id and question id are required." }, "ai.projectAndQuestionIdRequired"));
     }
 
     const payload = await answerJuryQAQuestionService({
@@ -998,7 +999,7 @@ const answerJuryQAQuestion = async (req, res) => {
   } catch (error) {
     console.error("[ai] answer jury Q&A error:", error.message);
     const status = error.message.includes("not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "AI jury answer evaluation failed." });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "AI jury answer evaluation failed." }, error, "ai.juryAnswerEvaluationFailed"));
   }
 };
 
@@ -1009,7 +1010,7 @@ const finalizeJuryQA = async (req, res) => {
   try {
     const { projectId } = req.body;
     if (!projectId) {
-      return res.status(400).json({ message: "Project id is required." });
+      return res.status(400).json(withMessageMetadata({ message: "Project id is required." }, "ai.projectIdRequired"));
     }
 
     const payload = await finalizeJuryQAService({
@@ -1028,7 +1029,7 @@ const finalizeJuryQA = async (req, res) => {
   } catch (error) {
     console.error("[ai] finalize jury Q&A error:", error.message);
     const status = error.message.includes("not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "AI final jury report generation failed." });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "AI final jury report generation failed." }, error, "ai.finalJuryReportGenerationFailed"));
   }
 };
 

@@ -1,4 +1,5 @@
 const Project = require("../models/Project");
+const { interfaceError } = require("../lib/interfaceMessages");
 const { normalizePresentation } = require("./presentationService");
 const { normalizePitch } = require("./pitchService");
 const { callGeminiJuryAnalysis } = require("./geminiJurySimulationService");
@@ -38,7 +39,7 @@ const parseJson = (content) => {
     return JSON.parse(extractJsonPayload(content));
   } catch (error) {
     console.error("[jurySimulation] Invalid AI JSON response:", String(content || "").slice(0, 1000));
-    throw new Error("AI returned a malformed assessment. Please try the analysis again.");
+    throw interfaceError("AI returned a malformed assessment. Please try the analysis again.", "jurySimulation.invalidAssessment");
   }
 };
 
@@ -125,7 +126,7 @@ const withCurrentMarkers = (attempts = [], versions) =>
 
 const getProjectForUser = async (userId, projectId) => {
   const project = await Project.findOne({ _id: projectId, user: userId });
-  if (!project) throw new Error("Project not found for this user.");
+  if (!project) throw interfaceError("Project not found for this user.", "project.notFound");
   return project;
 };
 
@@ -167,28 +168,28 @@ const analyzeJurySimulation = async ({
   };
 
   if (!presentation.slides.length) {
-    throw new Error("Generate your presentation before starting Jury Simulation.");
+    throw interfaceError("Generate your presentation before starting Jury Simulation.", "jurySimulation.presentationRequired");
   }
 
   if (!hasPitchSpeech(pitch)) {
-    throw new Error("Generate your pitch before starting Jury Simulation.");
+    throw interfaceError("Generate your pitch before starting Jury Simulation.", "jurySimulation.pitchRequired");
   }
 
   if (!audioFile?.buffer?.length) {
-    throw new Error("No recording was received. Please record your defense again.");
+    throw interfaceError("No recording was received. Please record your defense again.", "jurySimulation.recordingRequired");
   }
 
   if (audioFile.buffer.length > MAX_AUDIO_BYTES) {
-    throw new Error("The recording is too large. Please keep the defense under the selected target duration.");
+    throw interfaceError("The recording is too large. Please keep the defense under the selected target duration.", "jurySimulation.recordingTooLarge");
   }
 
   const safeActualSeconds = Math.max(0, Math.round(Number(actualSeconds) || 0));
   if (safeActualSeconds < MIN_DEFENSE_SECONDS) {
-    throw new Error("The defense recording is too short (less than 2 minutes). Please record at least 2 minutes to receive an accurate jury evaluation.");
+    throw interfaceError("The defense recording is too short (less than 2 minutes). Please record at least 2 minutes to receive an accurate jury evaluation.", "jurySimulation.recordingTooShort");
   }
 
   if (safeActualSeconds > MAX_DEFENSE_SECONDS) {
-    throw new Error("The recording is longer than the safety limit. Please keep the attempt under 25 minutes.");
+    throw interfaceError("The recording is longer than the safety limit. Please keep the attempt under 25 minutes.", "jurySimulation.recordingTooLong");
   }
 
   const targetSeconds = Math.round((presentation.durationMinutes || pitch.durationMinutes || 10) * 60);

@@ -1,4 +1,5 @@
 const Project = require("../models/Project");
+const { withMessageMetadata, withErrorMessageMetadata } = require("../lib/interfaceMessages");
 const User = require("../models/User");
 const {
   createNotification,
@@ -87,12 +88,17 @@ const createProject = async (req, res) => {
     await createNotification({
       user: req.user._id,
       title: "Project created",
+      titleKey: "events.projectCreated.title",
+      messageKey: "events.projectCreated.message",
       message: "Your PFE workspace has been created successfully.",
       type: "success",
     });
 
     await createAdminNotification({
       title: "New project created",
+      titleKey: "events.newProjectCreated.title",
+      messageKey: "events.newProjectCreated.message",
+      messageParams: { name: user?.fullName || "A student", title: basics?.title || "Untitled Project", nameMissing: !user?.fullName, titleMissing: !basics?.title },
       message: `${user?.fullName || "A student"} created "${basics?.title || "Untitled Project"}".`,
       type: "success",
     });
@@ -100,7 +106,7 @@ const createProject = async (req, res) => {
     res.status(201).json(project);
   } catch (error) {
     console.error("[project] createProject error:", error.message);
-    res.status(500).json({ message: "Server error", error: error.message });
+    res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
   }
 };
 
@@ -112,13 +118,13 @@ const getMyProject = async (req, res) => {
     const project = await Project.findOne({ user: req.user._id });
 
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user" });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user" }, "project.notFound"));
     }
 
     res.status(200).json(project);
   } catch (error) {
     console.error("[project] getMyProject error:", error.message);
-    res.status(500).json({ message: "Server error", error: error.message });
+    res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
   }
 };
 
@@ -132,7 +138,7 @@ const updateMyProject = async (req, res) => {
     const currentProject = await Project.findOne({ user: req.user._id });
 
     if (!currentProject) {
-      return res.status(404).json({ message: "Project not found for this user" });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user" }, "project.notFound"));
     }
 
     const incomingProblemStatement = description?.problemStatement;
@@ -165,6 +171,8 @@ const updateMyProject = async (req, res) => {
     await createNotification({
       user: req.user._id,
       title: "Project settings updated",
+      titleKey: "events.projectSettingsUpdated.title",
+      messageKey: "events.projectSettingsUpdated.message",
       message: "Your onboarding information has been saved.",
       type: "success",
     });
@@ -172,7 +180,7 @@ const updateMyProject = async (req, res) => {
     res.status(200).json(project);
   } catch (error) {
     console.error("[project] updateMyProject error:", error.message);
-    res.status(500).json({ message: "Server error", error: error.message });
+    res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
   }
 };
 
@@ -184,7 +192,7 @@ const updateProblemStatement = async (req, res) => {
     const { problemStatement, language } = req.body;
 
     if (problemStatement === undefined) {
-      return res.status(400).json({ message: "Problem statement content is required" });
+      return res.status(400).json(withMessageMetadata({ message: "Problem statement content is required" }, "project.problemStatementRequired"));
     }
 
     const updates = { "description.problemStatement": problemStatement };
@@ -199,7 +207,7 @@ const updateProblemStatement = async (req, res) => {
     );
 
     if (!project) {
-      return res.status(404).json({ message: "Project not found for this user" });
+      return res.status(404).json(withMessageMetadata({ message: "Project not found for this user" }, "project.notFound"));
     }
 
     await createGenerationNotificationIfRequested(req, project._id);
@@ -211,7 +219,7 @@ const updateProblemStatement = async (req, res) => {
     });
   } catch (error) {
     console.error("[project] updateProblemStatement error:", error.message);
-    res.status(500).json({ message: "Server error", error: error.message });
+    res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
   }
 };
 
@@ -225,7 +233,7 @@ const getActors = async (req, res) => {
   } catch (error) {
     console.error("[project] getActors error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -236,7 +244,7 @@ const updateActors = async (req, res) => {
   try {
     const { actors, language } = req.body;
     if (!Array.isArray(actors)) {
-      return res.status(400).json({ message: "Actors must be an array" });
+      return res.status(400).json(withMessageMetadata({ message: "Actors must be an array" }, "project.actorsMustBeArray"));
     }
 
     const saved = await saveActorsService(req.user._id, req.params.id, actors, language);
@@ -245,7 +253,7 @@ const updateActors = async (req, res) => {
   } catch (error) {
     console.error("[project] updateActors error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -259,7 +267,7 @@ const getExistingSolutions = async (req, res) => {
   } catch (error) {
     console.error("[project] getExistingSolutions error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -270,7 +278,7 @@ const updateExistingSolutions = async (req, res) => {
   try {
     const { existingSolutions, language } = req.body;
     if (!Array.isArray(existingSolutions)) {
-      return res.status(400).json({ message: "Existing solutions must be an array" });
+      return res.status(400).json(withMessageMetadata({ message: "Existing solutions must be an array" }, "project.existingSolutionsMustBeArray"));
     }
 
     const saved = await saveExistingSolutionsService(
@@ -284,7 +292,7 @@ const updateExistingSolutions = async (req, res) => {
   } catch (error) {
     console.error("[project] updateExistingSolutions error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -298,7 +306,7 @@ const getFunctionalRequirements = async (req, res) => {
   } catch (error) {
     console.error("[project] getFunctionalRequirements error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -309,7 +317,7 @@ const updateFunctionalRequirements = async (req, res) => {
   try {
     const { functionalRequirements, language } = req.body;
     if (!Array.isArray(functionalRequirements)) {
-      return res.status(400).json({ message: "Functional requirements must be an array" });
+      return res.status(400).json(withMessageMetadata({ message: "Functional requirements must be an array" }, "project.functionalRequirementsMustBeArray"));
     }
 
     const saved = await saveFunctionalRequirementsService(
@@ -323,7 +331,7 @@ const updateFunctionalRequirements = async (req, res) => {
   } catch (error) {
     console.error("[project] updateFunctionalRequirements error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -337,7 +345,7 @@ const getNonFunctionalRequirements = async (req, res) => {
   } catch (error) {
     console.error("[project] getNonFunctionalRequirements error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -348,7 +356,7 @@ const updateNonFunctionalRequirements = async (req, res) => {
   try {
     const { nonFunctionalRequirements, language } = req.body;
     if (!Array.isArray(nonFunctionalRequirements)) {
-      return res.status(400).json({ message: "Non-functional requirements must be an array" });
+      return res.status(400).json(withMessageMetadata({ message: "Non-functional requirements must be an array" }, "project.nonFunctionalRequirementsMustBeArray"));
     }
 
     const saved = await saveNonFunctionalRequirementsService(
@@ -362,7 +370,7 @@ const updateNonFunctionalRequirements = async (req, res) => {
   } catch (error) {
     console.error("[project] updateNonFunctionalRequirements error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -376,7 +384,7 @@ const getProductBacklog = async (req, res) => {
   } catch (error) {
     console.error("[project] getProductBacklog error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -387,7 +395,7 @@ const updateProductBacklog = async (req, res) => {
   try {
     const { productBacklog, language } = req.body;
     if (!Array.isArray(productBacklog)) {
-      return res.status(400).json({ message: "Product backlog must be an array" });
+      return res.status(400).json(withMessageMetadata({ message: "Product backlog must be an array" }, "project.productBacklogMustBeArray"));
     }
 
     const saved = await saveProductBacklogService(
@@ -401,7 +409,7 @@ const updateProductBacklog = async (req, res) => {
   } catch (error) {
     console.error("[project] updateProductBacklog error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -415,7 +423,7 @@ const getReportStructure = async (req, res) => {
   } catch (error) {
     console.error("[project] getReportStructure error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -426,7 +434,7 @@ const updateReportStructure = async (req, res) => {
   try {
     const { reportStructure, language } = req.body;
     if (!Array.isArray(reportStructure)) {
-      return res.status(400).json({ message: "Report structure must be an array" });
+      return res.status(400).json(withMessageMetadata({ message: "Report structure must be an array" }, "project.reportStructureMustBeArray"));
     }
 
     const saved = await saveReportStructureService(
@@ -440,7 +448,7 @@ const updateReportStructure = async (req, res) => {
   } catch (error) {
     console.error("[project] updateReportStructure error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -454,7 +462,7 @@ const getReportChapters = async (req, res) => {
   } catch (error) {
     console.error("[project] getReportChapters error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -465,7 +473,7 @@ const updateReportChapters = async (req, res) => {
   try {
     const { reportChapters } = req.body;
     if (!Array.isArray(reportChapters)) {
-      return res.status(400).json({ message: "Report chapters must be an array" });
+      return res.status(400).json(withMessageMetadata({ message: "Report chapters must be an array" }, "project.reportChaptersMustBeArray"));
     }
 
     const payload = await saveReportChaptersService(req.user._id, req.params.id, reportChapters);
@@ -474,7 +482,7 @@ const updateReportChapters = async (req, res) => {
   } catch (error) {
     console.error("[project] updateReportChapters error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -485,7 +493,7 @@ const updateFinalReport = async (req, res) => {
   try {
     const { finalReport } = req.body;
     if (!finalReport || typeof finalReport !== "object") {
-      return res.status(400).json({ message: "Final report must be an object" });
+      return res.status(400).json(withMessageMetadata({ message: "Final report must be an object" }, "project.finalReportMustBeObject"));
     }
 
     const savedFinalReport = await saveFinalReportService(req.user._id, req.params.id, finalReport);
@@ -494,7 +502,7 @@ const updateFinalReport = async (req, res) => {
   } catch (error) {
     console.error("[project] updateFinalReport error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -508,7 +516,7 @@ const getUmlPreparation = async (req, res) => {
   } catch (error) {
     console.error("[project] getUmlPreparation error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -519,7 +527,7 @@ const updateUmlPreparation = async (req, res) => {
   try {
     const { umlPreparation, language } = req.body;
     if (!umlPreparation || typeof umlPreparation !== "object") {
-      return res.status(400).json({ message: "UML preparation must be an object" });
+      return res.status(400).json(withMessageMetadata({ message: "UML preparation must be an object" }, "project.umlPreparationMustBeObject"));
     }
 
     const saved = await saveUmlPreparationService(req.user._id, req.params.id, umlPreparation, language);
@@ -528,7 +536,7 @@ const updateUmlPreparation = async (req, res) => {
   } catch (error) {
     console.error("[project] updateUmlPreparation error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -542,7 +550,7 @@ const getPresentation = async (req, res) => {
   } catch (error) {
     console.error("[project] getPresentation error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -553,7 +561,7 @@ const updatePresentation = async (req, res) => {
   try {
     const { presentation } = req.body;
     if (!presentation || typeof presentation !== "object") {
-      return res.status(400).json({ message: "Presentation must be an object" });
+      return res.status(400).json(withMessageMetadata({ message: "Presentation must be an object" }, "project.presentationMustBeObject"));
     }
 
     const savedPresentation = await savePresentationService(req.user._id, req.params.id, presentation);
@@ -562,7 +570,7 @@ const updatePresentation = async (req, res) => {
   } catch (error) {
     console.error("[project] updatePresentation error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -576,7 +584,7 @@ const getPitch = async (req, res) => {
   } catch (error) {
     console.error("[project] getPitch error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -587,7 +595,7 @@ const updatePitch = async (req, res) => {
   try {
     const { pitch } = req.body;
     if (!pitch || typeof pitch !== "object") {
-      return res.status(400).json({ message: "Pitch must be an object" });
+      return res.status(400).json(withMessageMetadata({ message: "Pitch must be an object" }, "project.pitchMustBeObject"));
     }
 
     const savedPitch = await savePitchService(req.user._id, req.params.id, pitch);
@@ -596,7 +604,7 @@ const updatePitch = async (req, res) => {
   } catch (error) {
     console.error("[project] updatePitch error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -610,7 +618,7 @@ const getJurySimulation = async (req, res) => {
   } catch (error) {
     console.error("[project] getJurySimulation error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Server error" });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Server error" }, error, "common.serverError"));
   }
 };
 
@@ -624,7 +632,7 @@ const getJuryQASessions = async (req, res) => {
   } catch (error) {
     console.error("[project] getJuryQASessions error:", error.message);
     const status = error.message.includes("Project not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Failed to load jury Q&A sessions." });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Failed to load jury Q&A sessions." }, error, "project.loadJurySessionsFailed"));
   }
 };
 
@@ -638,7 +646,7 @@ const getJuryQASession = async (req, res) => {
   } catch (error) {
     console.error("[project] getJuryQASession error:", error.message);
     const status = error.message.includes("not found") ? 404 : 500;
-    res.status(status).json({ message: error.message || "Failed to load jury Q&A session." });
+    res.status(status).json(withErrorMessageMetadata({ message: error.message || "Failed to load jury Q&A session." }, error, "project.loadJurySessionFailed"));
   }
 };
 

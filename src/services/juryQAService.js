@@ -5,6 +5,7 @@ const { normalizePitch } = require("./pitchService");
 const { callGemini } = require("./geminiService");
 const { callGeminiJuryAnswerEvaluation } = require("./geminiJurySimulationService");
 const { getReportStructureRagContext } = require("./reportStructureRagService");
+const { interfaceError } = require("../lib/interfaceMessages");
 const {
   buildJuryQuestionGenerationPrompt,
   buildJuryAnswerEvaluationPrompt,
@@ -41,18 +42,18 @@ const extractJsonPayload = (content) => {
   return candidate;
 };
 
-const parseJson = (content, fallbackMessage = "AI returned malformed jury Q&A JSON. Please retry.") => {
+const parseJson = (content, fallbackMessage = "AI returned malformed jury Q&A JSON. Please retry.", messageKey = "jury.invalidResponse") => {
   try {
     return JSON.parse(extractJsonPayload(content));
   } catch (error) {
     console.error("[juryQA] Invalid AI JSON response:", String(content || "").slice(0, 1000));
-    throw new Error(fallbackMessage);
+    throw interfaceError(fallbackMessage, messageKey);
   }
 };
 
 const getProjectForUser = async (userId, projectId) => {
   const project = await Project.findOne({ _id: projectId, user: userId });
-  if (!project) throw new Error("Project not found for this user.");
+  if (!project) throw interfaceError("Project not found for this user.", "project.notFound");
   return project;
 };
 
@@ -172,7 +173,7 @@ const getAttemptById = (project, juryAttemptId) => {
   const attempts = project.jurySimulation?.attempts || [];
   const attempt = attempts.id?.(juryAttemptId) || attempts.find((item) => String(item._id) === String(juryAttemptId));
   if (!attempt || attempt.status !== "completed") {
-    throw new Error("A completed defense analysis is required before starting Jury Q&A.");
+    throw interfaceError("A completed defense analysis is required before starting Jury Q&A.", "jury.completedDefenseRequired");
   }
   return attempt;
 };
@@ -199,7 +200,7 @@ const getJuryQASessions = async (userId, projectId) => {
 const getJuryQASession = async (userId, projectId, sessionId) => {
   const project = await getProjectForUser(userId, projectId);
   const session = findQASession(project, sessionId);
-  if (!session) throw new Error("Jury Q&A session was not found.");
+  if (!session) throw interfaceError("Jury Q&A session was not found.", "jury.sessionNotFound");
   return { session: toObject(session) };
 };
 
@@ -215,16 +216,16 @@ const generateJuryQA = async ({ userId, projectId, juryAttemptId, submittedPrese
     ? normalizePresentation(submittedPresentation, project)
     : normalizePresentation(project.presentation || {}, project);
   const pitch = getPitchForContext(project, presentation, submittedPitch);
-  if (!presentation.slides.length) throw new Error("Generate your presentation before starting Jury Q&A.");
-  if (!hasPitchSpeech(pitch)) throw new Error("Generate your pitch before starting Jury Q&A.");
+  if (!presentation.slides.length) throw interfaceError("Generate your presentation before starting Jury Q&A.", "jury.presentationRequired");
+  if (!hasPitchSpeech(pitch)) throw interfaceError("Generate your pitch before starting Jury Q&A.", "jury.pitchRequired");
 
   const versions = getCurrentVersions(project);
   const ragContext = await getReportStructureRagContext(project, "jury-qa-generate");
   const prompt = buildJuryQuestionGenerationPrompt({ project, presentation, pitch, attempt, ragContext });
   const response = await callGemini(prompt.system, prompt.userText, { tier: "reasoning", responseMimeType: "application/json" });
-  const parsed = parseJson(response, "AI could not generate jury questions. Please retry.");
+  const parsed = parseJson(response, "AI could not generate jury questions. Please retry.", "jury.questionGenerationFailed");
   const questions = normalizeQuestions(parsed.questions);
-  if (questions.length < 3) throw new Error("AI did not return enough jury questions. Please retry.");
+  if (questions.length < 3) throw interfaceError("AI did not return enough jury questions. Please retry.", "jury.notEnoughQuestions");
 
   const session = {
     projectId: project._id,
@@ -258,7 +259,7 @@ const maybeAddFollowUpQuestion = async ({ project, session, question, evaluation
 
   const prompt = buildJuryFollowUpPrompt({ project, question, evaluation });
   const response = await callGemini(prompt.system, prompt.userText, { tier: "default", responseMimeType: "application/json" });
-  const parsed = parseJson(response, "AI could not generate a follow-up question.");
+  const parsed = parseJson(response, "AI could not generate a follow-up question.", "jury.followUpGenerationFailed");
   const followUp = normalizeQuestion(parsed, session.questions.length, question.id);
   if (!followUp.question) return null;
   session.questions.push(followUp);
@@ -268,21 +269,21 @@ const maybeAddFollowUpQuestion = async ({ project, session, question, evaluation
 const answerJuryQAQuestion = async ({ userId, projectId, sessionId, questionId, audioFile, durationSeconds }) => {
   const project = await getProjectForUser(userId, projectId);
   const session = findQASession(project, sessionId);
-  if (!session) throw new Error("Jury Q&A session was not found.");
-  if (session.status === "completed") throw new Error("This Jury Q&A session is already completed.");
+  if (!session) throw interfaceError("Jury Q&A session was not found.", "jury.sessionNotFound");
+  if (session.status === "completed") throw interfaceError("This Jury Q&A session is already completed.", "jury.sessionCompleted");
 
   const question = (session.questions || []).find((item) => item.id === questionId);
-  if (!question) throw new Error("Selected jury question was not found.");
+  if (!question) throw interfaceError("Selected jury question was not found.", "jury.questionNotFound");
 
   if (question.answer?.transcript && question.evaluation?.score !== undefined) {
     return { session: toObject(session), question: toObject(question), duplicate: true };
   }
 
-  if (!audioFile?.buffer?.length) throw new Error("No answer recording was received.");
-  if (audioFile.buffer.length > MAX_AUDIO_BYTES) throw new Error("The answer recording is too large.");
+  if (!audioFile?.buffer?.length) throw interfaceError("No answer recording was received.", "jury.answerRecordingRequired");
+  if (audioFile.buffer.length > MAX_AUDIO_BYTES) throw interfaceError("The answer recording is too large.", "jury.answerRecordingTooLarge");
   const safeDuration = Math.max(0, Math.round(Number(durationSeconds) || 0));
-  if (safeDuration < MIN_ANSWER_SECONDS) throw new Error("The answer recording is empty or too short.");
-  if (safeDuration > MAX_ANSWER_SECONDS) throw new Error("Please keep each answer under 5 minutes.");
+  if (safeDuration < MIN_ANSWER_SECONDS) throw interfaceError("The answer recording is empty or too short.", "jury.answerRecordingTooShort");
+  if (safeDuration > MAX_ANSWER_SECONDS) throw interfaceError("Please keep each answer under 5 minutes.", "jury.answerRecordingTooLong");
 
   const attempt = getAttemptById(project, session.juryAttemptId);
   const presentation = normalizePresentation(project.presentation || {}, project);
@@ -296,7 +297,7 @@ const answerJuryQAQuestion = async ({ userId, projectId, sessionId, questionId, 
     mimeType: audioFile.mimetype || "audio/webm",
   });
 
-  const evaluation = normalizeEvaluation(parseJson(text, "AI could not evaluate the recorded answer. Please retry."));
+  const evaluation = normalizeEvaluation(parseJson(text, "AI could not evaluate the recorded answer. Please retry.", "jury.answerEvaluationFailed"));
   question.answer = {
     transcript: evaluation.transcript,
     audioMetadata: {
@@ -323,14 +324,14 @@ const answerJuryQAQuestion = async ({ userId, projectId, sessionId, questionId, 
 const finalizeJuryQA = async ({ userId, projectId, sessionId }) => {
   const project = await getProjectForUser(userId, projectId);
   const session = findQASession(project, sessionId);
-  if (!session) throw new Error("Jury Q&A session was not found.");
+  if (!session) throw interfaceError("Jury Q&A session was not found.", "jury.sessionNotFound");
   if (session.status === "completed" && session.finalEvaluation?.overallScore) {
     return { session: toObject(session), resumed: true };
   }
 
   const unanswered = (session.questions || []).filter((question) => !question.answer?.transcript || !question.evaluation);
   if (unanswered.length) {
-    throw new Error("Answer all jury questions before generating the final report.");
+    throw interfaceError("Answer all jury questions before generating the final report.", "jury.answersRequiredForFinalReport");
   }
 
   const attempt = getAttemptById(project, session.juryAttemptId);
@@ -344,7 +345,7 @@ const finalizeJuryQA = async ({ userId, projectId, sessionId }) => {
 
   const prompt = buildFinalJuryReportPrompt({ project, presentation, pitch, attempt, session, weightedDraft, ragContext });
   const response = await callGemini(prompt.system, prompt.userText, { tier: "reasoning", responseMimeType: "application/json" });
-  const parsed = parseJson(response, "AI could not generate the final jury report. Please retry.");
+  const parsed = parseJson(response, "AI could not generate the final jury report. Please retry.", "jury.finalReportFailed");
 
   session.finalEvaluation = normalizeFinalEvaluation(parsed, weightedDraft);
   session.status = "completed";

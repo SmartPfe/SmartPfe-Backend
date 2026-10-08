@@ -1,3 +1,4 @@
+const { interfaceError } = require("../lib/interfaceMessages");
 const Project = require("../models/Project");
 const { callGemini } = require("./geminiService");
 const {
@@ -228,7 +229,7 @@ const mergeUmlPreparation = (base, partial, diagramType = "all") => {
 const getProjectForUser = async (userId, projectId = null) => {
   const query = projectId ? { _id: projectId, user: userId } : { user: userId };
   const project = await Project.findOne(query);
-  if (!project) throw new Error("Project not found for this user.");
+  if (!project) throw interfaceError("Project not found for this user.", "project.notFound");
   return project;
 };
 
@@ -240,7 +241,7 @@ const generateUmlPreparation = async (project, diagramType = "all", currentPrepa
     parsed = JSON.parse(extractJsonPayload(response));
   } catch (error) {
     console.error("[uml] Invalid AI JSON response:", String(response || "").slice(0, 1000));
-    throw new Error("AI returned invalid UML preparation JSON. Please try again.");
+    throw interfaceError("AI returned invalid UML preparation JSON. Please try again.", "ai.umlPreparationGenerationFailed");
   }
 
   const base = currentPreparation || project.umlPreparation || {};
@@ -256,7 +257,7 @@ const refineUmlPreparation = async (project, currentUmlPreparation, instructions
     parsed = JSON.parse(extractJsonPayload(response));
   } catch (error) {
     console.error("[uml] Invalid AI JSON response:", String(response || "").slice(0, 1000));
-    throw new Error("AI returned invalid UML preparation JSON. Please try again.");
+    throw interfaceError("AI returned invalid UML preparation JSON. Please try again.", "ai.umlPreparationGenerationFailed");
   }
 
   return mergeUmlPreparation(umlPreparation, parsed.umlPreparation || parsed, diagramType);
@@ -265,7 +266,7 @@ const refineUmlPreparation = async (project, currentUmlPreparation, instructions
 const translateUmlPreparation = async (project, currentUmlPreparation) => {
   const umlPreparation = normalizeUmlPreparation(currentUmlPreparation);
   if (umlPreparation.classes.length === 0) {
-    throw new Error("Current UML preparation is required to translate.");
+    throw interfaceError("Current UML preparation is required to translate.", "ai.currentUmlPreparationRequiredToTranslate");
   }
 
   const prompt = buildUmlPreparationTranslationPrompt(project, umlPreparation);
@@ -291,7 +292,7 @@ const saveUmlPreparation = async (userId, projectId, umlPreparation, language) =
     { new: true, runValidators: true }
   );
 
-  if (!project) throw new Error("Project not found for this user.");
+  if (!project) throw interfaceError("Project not found for this user.", "project.notFound");
   return {
     umlPreparation: normalizeUmlPreparation(project.umlPreparation || {}),
     language: project.umlPreparationLanguage,

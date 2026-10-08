@@ -1,3 +1,4 @@
+const { interfaceError } = require("../lib/interfaceMessages");
 const Project = require("../models/Project");
 const { callGemini } = require("./geminiService");
 const {
@@ -49,7 +50,7 @@ const extractJsonPayload = (content) => {
 const validateReportStructureTree = (sections) => {
   const normalized = normalizeSections(sections);
   if (!Array.isArray(normalized) || normalized.length === 0) {
-    throw new Error("AI did not return any valid report sections.");
+    throw interfaceError("AI did not return any valid report sections.", "ai.reportStructureGenerationFailed");
   }
 
   // Ensure minimum academic breadth (at least 4 chapters)
@@ -72,7 +73,7 @@ const parseReportStructureResponse = (content) => {
       parsed = JSON.parse(repaired);
     } catch (repairErr) {
       console.error("[report-structure] Invalid AI JSON response:", String(content || "").slice(0, 1000));
-      throw new Error("AI returned invalid report structure JSON. Please try again.");
+      throw interfaceError("AI returned invalid report structure JSON. Please try again.", "ai.reportStructureGenerationFailed");
     }
   }
 
@@ -83,7 +84,7 @@ const parseReportStructureResponse = (content) => {
 const getProjectForUser = async (userId, projectId = null) => {
   const query = projectId ? { _id: projectId, user: userId } : { user: userId };
   const project = await Project.findOne(query);
-  if (!project) throw new Error("Project not found for this user.");
+  if (!project) throw interfaceError("Project not found for this user.", "project.notFound");
   return project;
 };
 
@@ -99,7 +100,7 @@ const generateReportStructure = async (project) => {
 
 const refineReportStructure = async (project, currentStructure, instructions = "") => {
   const reportStructure = normalizeSections(currentStructure);
-  if (reportStructure.length === 0) throw new Error("Current report structure is required to refine.");
+  if (reportStructure.length === 0) throw interfaceError("Current report structure is required to refine.", "ai.currentReportStructureRequiredToRefine");
   const ragContext = await getReportStructureRagContext(project, "refine");
   const prompt = buildReportStructureRefinementPrompt(project, reportStructure, instructions, ragContext);
   console.info(
@@ -111,7 +112,7 @@ const refineReportStructure = async (project, currentStructure, instructions = "
 
 const translateReportStructure = async (project, currentStructure) => {
   const reportStructure = normalizeSections(currentStructure);
-  if (reportStructure.length === 0) throw new Error("Current report structure is required to translate.");
+  if (reportStructure.length === 0) throw interfaceError("Current report structure is required to translate.", "ai.currentReportStructureRequiredToTranslate");
   const prompt = buildReportStructureTranslationPrompt(project, reportStructure);
   const response = await callGemini(prompt, null, { tier: "fast" });
   return parseReportStructureResponse(response);
@@ -135,7 +136,7 @@ const saveReportStructure = async (userId, projectId, reportStructure, language)
     { new: true, runValidators: true }
   );
 
-  if (!project) throw new Error("Project not found for this user.");
+  if (!project) throw interfaceError("Project not found for this user.", "project.notFound");
   return {
     reportStructure: normalizeSections(project.reportStructure || []),
     language: project.reportStructureLanguage,

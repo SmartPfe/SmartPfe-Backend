@@ -1,9 +1,11 @@
+const { normalizeEmailLocale } = require("../services/emailLocale");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const crypto = require("crypto");
 const { OAuth2Client } = require("google-auth-library");
 const { createNotification, createAdminNotification } = require("../services/notificationService");
 const { getWalletForUser } = require("../services/creditService");
+const { withMessageMetadata } = require("../lib/interfaceMessages");
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -17,6 +19,9 @@ const {
   sendResetPasswordEmail,
   sendEmailVerificationCode,
 } = require("../services/emailService");
+
+const requestUiLanguage = (req) => normalizeEmailLocale(req.headers?.["x-ui-language"]);
+const recipientUiLanguage = (user, req) => user.uiLanguage || requestUiLanguage(req);
 
 const createVerificationCode = () => String(crypto.randomInt(100000, 1000000));
 
@@ -56,7 +61,7 @@ const registerUser = async (req, res) => {
 
     if (userExists) {
       if (userExists.googleId && !userExists.password) {
-        return res.status(400).json({ message: "This email is already connected with Google. Please log in using 'Continue with Google'." });
+        return res.status(400).json(withMessageMetadata({ message: "This email is already connected with Google. Please log in using 'Continue with Google'." }, "auth.googleLoginRequired"));
       }
 
       if (userExists.emailVerified === false) {
@@ -65,13 +70,13 @@ const registerUser = async (req, res) => {
         const verificationCode = setEmailVerificationCode(userExists);
         await userExists.save();
 
-        const emailResult = await sendEmailVerificationCode(userExists.email, verificationCode);
-        const response = {
+        const emailResult = await sendEmailVerificationCode(userExists.email, verificationCode, recipientUiLanguage(userExists, req));
+        const response = withMessageMetadata({
           message: "Verification code sent. Please check your email.",
           requiresEmailVerification: true,
           email: userExists.email,
           emailSent: emailResult.sent === true,
-        };
+        }, "auth.verificationCodeSent");
 
         if (emailResult.devFallback && process.env.NODE_ENV !== "production") {
           response.devVerificationCode = emailResult.verificationCode;
@@ -80,7 +85,7 @@ const registerUser = async (req, res) => {
         return res.status(200).json(response);
       }
 
-      return res.status(400).json({ message: "User already exists with this email" });
+      return res.status(400).json(withMessageMetadata({ message: "User already exists with this email" }, "auth.userAlreadyExists"));
     }
 
     // Create user
@@ -89,19 +94,20 @@ const registerUser = async (req, res) => {
       email: normalizedEmail,
       password,
       emailVerified: false,
+      uiLanguage: requestUiLanguage(req),
     });
 
     if (user) {
       const verificationCode = setEmailVerificationCode(user);
       await user.save();
 
-      const emailResult = await sendEmailVerificationCode(user.email, verificationCode);
-      const response = {
+      const emailResult = await sendEmailVerificationCode(user.email, verificationCode, recipientUiLanguage(user, req));
+      const response = withMessageMetadata({
         message: "Account created. Verification code sent to your email.",
         requiresEmailVerification: true,
         email: user.email,
         emailSent: emailResult.sent === true,
-      };
+      }, "auth.accountCreatedVerificationSent");
 
       if (emailResult.devFallback && process.env.NODE_ENV !== "production") {
         response.devVerificationCode = emailResult.verificationCode;
@@ -109,10 +115,10 @@ const registerUser = async (req, res) => {
 
       res.status(201).json(response);
     } else {
-      res.status(400).json({ message: "Invalid user data received" });
+      res.status(400).json(withMessageMetadata({ message: "Invalid user data received" }, "auth.invalidUserData"));
     }
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
   }
 };
 
@@ -128,21 +134,21 @@ const loginUser = async (req, res) => {
     const user = await User.findOne({ email: normalizedEmail });
 
     if (user && !user.password) {
-      return res.status(400).json({ message: "This account was registered using Google. Please log in using 'Continue with Google'." });
+      return res.status(400).json(withMessageMetadata({ message: "This account was registered using Google. Please log in using 'Continue with Google'." }, "auth.googleLoginRequired"));
     }
 
     if (user && (await user.matchPassword(password))) {
       if (user.emailVerified === false) {
         const verificationCode = setEmailVerificationCode(user);
         await user.save();
-        const emailResult = await sendEmailVerificationCode(user.email, verificationCode);
+        const emailResult = await sendEmailVerificationCode(user.email, verificationCode, recipientUiLanguage(user, req));
 
-        const response = {
+        const response = withMessageMetadata({
           message: "Please verify your email before logging in. A new code has been sent.",
           requiresEmailVerification: true,
           email: user.email,
           emailSent: emailResult.sent === true,
-        };
+        }, "auth.verifyEmailBeforeLogin");
 
         if (emailResult.devFallback && process.env.NODE_ENV !== "production") {
           response.devVerificationCode = emailResult.verificationCode;
@@ -153,10 +159,10 @@ const loginUser = async (req, res) => {
 
       res.json(buildAuthResponse(user, "email"));
     } else {
-      res.status(401).json({ message: "Invalid email or password" });
+      res.status(401).json(withMessageMetadata({ message: "Invalid email or password" }, "auth.invalidCredentials"));
     }
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
   }
 };
 
@@ -170,20 +176,20 @@ const verifyEmail = async (req, res) => {
     const normalizedCode = String(code || "").trim();
 
     if (!normalizedEmail || !normalizedCode) {
-      return res.status(400).json({ message: "Email and verification code are required" });
+      return res.status(400).json(withMessageMetadata({ message: "Email and verification code are required" }, "auth.emailAndCodeRequired"));
     }
 
     const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
-      return res.status(400).json({ message: "No account was found for this email" });
+      return res.status(400).json(withMessageMetadata({ message: "No account was found for this email" }, "auth.accountNotFound"));
     }
 
     if (user.emailVerified !== false) {
-      return res.status(400).json({
+      return res.status(400).json(withMessageMetadata({
         message: "This email is already verified. Please log in.",
         alreadyVerified: true,
-      });
+      }, "auth.emailAlreadyVerifiedLogin"));
     }
 
     const codeHash = hashVerificationCode(normalizedCode);
@@ -193,7 +199,7 @@ const verifyEmail = async (req, res) => {
       user.emailVerificationCodeExpiry > new Date();
 
     if (!isCodeValid) {
-      return res.status(400).json({ message: "Invalid or expired verification code" });
+      return res.status(400).json(withMessageMetadata({ message: "Invalid or expired verification code" }, "auth.invalidVerificationCode"));
     }
 
     user.emailVerified = true;
@@ -204,6 +210,9 @@ const verifyEmail = async (req, res) => {
 
     await createAdminNotification({
       title: "New user registered",
+      titleKey: "events.userRegistered.title",
+      messageKey: "events.userRegistered.message",
+      messageParams: { name: user.fullName, role: user.role || "etudiant" },
       message: `${user.fullName} joined the platform as ${user.role || "etudiant"}.`,
       type: "info",
     });
@@ -211,7 +220,7 @@ const verifyEmail = async (req, res) => {
     return res.status(200).json(buildAuthResponse(user, "email"));
   } catch (error) {
     console.error("[auth] verifyEmail error:", error.message);
-    return res.status(500).json({ message: "Server error", error: error.message });
+    return res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
   }
 };
 
@@ -224,31 +233,31 @@ const resendVerificationCode = async (req, res) => {
     const normalizedEmail = String(email || "").trim().toLowerCase();
 
     if (!normalizedEmail) {
-      return res.status(400).json({ message: "Email is required" });
+      return res.status(400).json(withMessageMetadata({ message: "Email is required" }, "auth.emailRequired"));
     }
 
     const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
-      return res.status(400).json({ message: "No account was found for this email" });
+      return res.status(400).json(withMessageMetadata({ message: "No account was found for this email" }, "auth.accountNotFound"));
     }
 
     if (user.emailVerified !== false) {
-      return res.status(200).json({
+      return res.status(200).json(withMessageMetadata({
         message: "This email is already verified. You can log in now.",
         alreadyVerified: true,
-      });
+      }, "auth.emailAlreadyVerifiedLoginNow"));
     }
 
     const verificationCode = setEmailVerificationCode(user);
     await user.save();
 
-    const emailResult = await sendEmailVerificationCode(user.email, verificationCode);
-    const response = {
+    const emailResult = await sendEmailVerificationCode(user.email, verificationCode, recipientUiLanguage(user, req));
+    const response = withMessageMetadata({
       message: "A new verification code has been sent.",
       email: user.email,
       emailSent: emailResult.sent === true,
-    };
+    }, "auth.newVerificationCodeSent");
 
     if (emailResult.devFallback && process.env.NODE_ENV !== "production") {
       response.devVerificationCode = emailResult.verificationCode;
@@ -257,7 +266,7 @@ const resendVerificationCode = async (req, res) => {
     return res.status(200).json(response);
   } catch (error) {
     console.error("[auth] resendVerificationCode error:", error.message);
-    return res.status(500).json({ message: "Server error", error: error.message });
+    return res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
   }
 };
 const getProfile = async (req, res) => {
@@ -271,7 +280,8 @@ const getProfile = async (req, res) => {
   } catch (error) {
 
     res.status(500).json({
-      message: "Server error"
+      message: "Server error",
+      messageKey: "common.serverError"
     });
 
   }
@@ -284,7 +294,7 @@ const getPreferences = async (req, res) => {
 const updatePreferences = async (req, res) => {
   const { uiLanguage } = req.body || {};
   if (uiLanguage !== "en" && uiLanguage !== "fr") {
-    return res.status(400).json({ message: "uiLanguage must be en or fr" });
+    return res.status(400).json(withMessageMetadata({ message: "uiLanguage must be en or fr" }, "auth.invalidUiLanguage"));
   }
 
   try {
@@ -295,12 +305,12 @@ const updatePreferences = async (req, res) => {
     );
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json(withMessageMetadata({ message: "User not found" }, "auth.userNotFound"));
     }
 
     return res.json({ uiLanguage: user.uiLanguage || "en" });
   } catch (error) {
-    return res.status(500).json({ message: "Server error", error: error.message });
+    return res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
   }
 };
 
@@ -309,13 +319,13 @@ const updateProfile = async (req, res) => {
     const user = await User.findById(req.user._id);
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json(withMessageMetadata({ message: "User not found" }, "auth.userNotFound"));
     }
 
     if (user.googleId) {
-      return res.status(403).json({
+      return res.status(403).json(withMessageMetadata({
         message: "This account is connected with Google. Profile and password changes are managed by Google.",
-      });
+      }, "auth.googleProfileManaged"));
     }
 
     const { fullName, currentPassword, newPassword } = req.body;
@@ -331,16 +341,16 @@ const updateProfile = async (req, res) => {
 
     if (wantsPasswordChange) {
       if (!newPassword || newPassword.length < 6) {
-        return res.status(400).json({ message: "Password must be at least 6 characters" });
+        return res.status(400).json(withMessageMetadata({ message: "Password must be at least 6 characters" }, "auth.passwordTooShort"));
       }
 
       if (!currentPassword) {
-        return res.status(400).json({ message: "Current password is required" });
+        return res.status(400).json(withMessageMetadata({ message: "Current password is required" }, "auth.currentPasswordRequired"));
       }
 
       const isCurrentPasswordValid = await user.matchPassword(currentPassword);
       if (!isCurrentPasswordValid) {
-        return res.status(401).json({ message: "Current password is incorrect" });
+        return res.status(401).json(withMessageMetadata({ message: "Current password is incorrect" }, "auth.currentPasswordIncorrect"));
       }
 
       user.password = newPassword;
@@ -352,6 +362,8 @@ const updateProfile = async (req, res) => {
     await createNotification({
       user: req.user._id,
       title: passwordChanged ? "Password updated" : "Profile updated",
+      titleKey: passwordChanged ? "events.passwordUpdated.title" : "events.profileUpdated.title",
+      messageKey: passwordChanged ? "events.passwordUpdated.message" : "events.profileUpdated.message",
       message: passwordChanged
         ? "Your password was changed successfully."
         : "Your profile information has been saved.",
@@ -371,7 +383,7 @@ const updateProfile = async (req, res) => {
       passwordChanged,
     });
   } catch (error) {
-    return res.status(500).json({ message: "Server error", error: error.message });
+    return res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
   }
 };
 const forgotPassword = async (req, res) => {
@@ -382,8 +394,8 @@ const forgotPassword = async (req, res) => {
 
     if (!user) {
       return res.status(200).json({
-        message:
-          "Si un compte existe, un email a été envoyé.",
+        message: "Si un compte existe, un email a été envoyé.",
+        messageKey: "auth.passwordResetIfAccountExists",
       });
     }
 
@@ -398,12 +410,12 @@ const forgotPassword = async (req, res) => {
 
     await user.save();
 
-    const emailResult = await sendResetPasswordEmail(user.email, resetToken);
+    const emailResult = await sendResetPasswordEmail(user.email, resetToken, recipientUiLanguage(user, req));
 
-    const response = {
+    const response = withMessageMetadata({
       message: "Si un compte existe, un email a été envoyé.",
       emailSent: emailResult.sent === true,
-    };
+    }, "auth.passwordResetIfAccountExists");
 
     if (emailResult.devFallback && process.env.NODE_ENV !== "production") {
       response.devResetLink = emailResult.resetLink;
@@ -414,6 +426,7 @@ const forgotPassword = async (req, res) => {
     console.error("[auth] forgotPassword error:", error.message);
     return res.status(500).json({
       message: "Server error",
+      messageKey: "common.serverError",
       error: error.message,
     });
   }
@@ -424,11 +437,11 @@ const resetPassword = async (req, res) => {
     const { token, password } = req.body;
 
     if (!token || !password) {
-      return res.status(400).json({ message: "Token and password are required" });
+      return res.status(400).json(withMessageMetadata({ message: "Token and password are required" }, "auth.resetTokenAndPasswordRequired"));
     }
 
     if (password.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters" });
+      return res.status(400).json(withMessageMetadata({ message: "Password must be at least 6 characters" }, "auth.passwordTooShort"));
     }
 
     const user = await User.findOne({
@@ -437,7 +450,7 @@ const resetPassword = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({ message: "Invalid or expired reset link" });
+      return res.status(400).json(withMessageMetadata({ message: "Invalid or expired reset link" }, "auth.invalidResetLink"));
     }
 
     user.password = password;
@@ -445,11 +458,12 @@ const resetPassword = async (req, res) => {
     user.resetTokenExpiry = undefined;
     await user.save();
 
-    return res.status(200).json({ message: "Password reset successfully" });
+    return res.status(200).json(withMessageMetadata({ message: "Password reset successfully" }, "auth.passwordResetSuccess"));
   } catch (error) {
     console.error("[auth] resetPassword error:", error.message);
     return res.status(500).json({
       message: "Server error",
+      messageKey: "common.serverError",
       error: error.message,
     });
   }
@@ -459,7 +473,7 @@ const googleLogin = async (req, res) => {
     const { credential } = req.body;
 
     if (!credential) {
-      return res.status(400).json({ message: "Google credential is required" });
+      return res.status(400).json(withMessageMetadata({ message: "Google credential is required" }, "auth.googleCredentialRequired"));
     }
 
     const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -476,7 +490,7 @@ const googleLogin = async (req, res) => {
     const { sub: googleId, email, name: fullName, picture } = payload;
 
     if (!email) {
-      return res.status(400).json({ message: "Google account does not provide an email" });
+      return res.status(400).json(withMessageMetadata({ message: "Google account does not provide an email" }, "auth.googleEmailMissing"));
     }
 
     // 1. Check if user already exists with googleId
@@ -502,11 +516,15 @@ const googleLogin = async (req, res) => {
           googleId,
           avatar: picture,
           emailVerified: true,
+          uiLanguage: requestUiLanguage(req),
         });
         await getWalletForUser(user);
 
         await createAdminNotification({
           title: "New Google user registered",
+          titleKey: "events.googleUserRegistered.title",
+          messageKey: "events.googleUserRegistered.message",
+          messageParams: { name: user.fullName },
           message: `${user.fullName} joined the platform with Gmail.`,
           type: "info",
         });
@@ -533,11 +551,11 @@ const googleLogin = async (req, res) => {
         token: generateToken(user._id),
       });
     } else {
-      res.status(400).json({ message: "Failed to authenticate with Google" });
+      res.status(400).json(withMessageMetadata({ message: "Failed to authenticate with Google" }, "auth.googleAuthenticationFailed"));
     }
   } catch (error) {
     console.error("[auth] googleLogin error:", error.message);
-    res.status(500).json({ message: "Google authentication failed", error: error.message });
+    res.status(500).json(withMessageMetadata({ message: "Google authentication failed", error: error.message }, "auth.googleAuthenticationFailed"));
   }
 };
 

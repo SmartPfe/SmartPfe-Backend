@@ -1,3 +1,4 @@
+const { interfaceError } = require("../lib/interfaceMessages");
 const Project = require("../models/Project");
 const { callGemini } = require("./geminiService");
 const { getSourceFingerprint, normalizePresentation } = require("./presentationService");
@@ -154,12 +155,12 @@ const parsePitchResponse = (content, project, language = getProjectLanguage(proj
     parsed = JSON.parse(extractJsonPayload(content));
   } catch (error) {
     console.error("[pitch] Invalid AI JSON response:", String(content || "").slice(0, 1000));
-    throw new Error("AI returned invalid pitch JSON. Please try again.");
+    throw interfaceError("AI returned invalid pitch JSON. Please try again.", "ai.pitchGenerationFailed");
   }
 
   const pitch = normalizePitch(parsed.pitch || parsed, project, language);
   if (pitch.slides.length === 0 || pitch.slides.every((slide) => !slide.speech)) {
-    throw new Error("AI did not return any valid speech. Please try again.");
+    throw interfaceError("AI did not return any valid speech. Please try again.", "ai.pitchGenerationFailed");
   }
 
   return pitch;
@@ -171,7 +172,7 @@ const parsePitchSlideResponse = (content, project, slideId, fallbackSlide = null
     parsed = JSON.parse(extractJsonPayload(content));
   } catch (error) {
     console.error("[pitch] Invalid AI slide JSON response:", String(content || "").slice(0, 1000));
-    throw new Error("AI returned invalid slide speech JSON. Please try again.");
+    throw interfaceError("AI returned invalid slide speech JSON. Please try again.", "ai.slideSpeechGenerationFailed");
   }
 
   const presentation = normalizePresentation(project.presentation || {}, project);
@@ -180,14 +181,14 @@ const parsePitchSlideResponse = (content, project, slideId, fallbackSlide = null
       ? { id: slideId, title: fallbackSlide.title || "Selected slide" }
       : null
   );
-  if (!presentationSlide) throw new Error("Selected presentation slide was not found.");
+  if (!presentationSlide) throw interfaceError("Selected presentation slide was not found.", "ai.selectedSlideNotFound");
 
   const slide = normalizeSlide({
     ...(parsed.slide || parsed),
     slideId,
   }, presentationSlide, 0, presentation, getProjectLanguage(project));
   if (!slide.speech) {
-    throw new Error("AI did not return valid speech for this slide. Please try again.");
+    throw interfaceError("AI did not return valid speech for this slide. Please try again.", "ai.slideSpeechGenerationFailed");
   }
 
   return slide;
@@ -196,7 +197,7 @@ const parsePitchSlideResponse = (content, project, slideId, fallbackSlide = null
 const getProjectForUser = async (userId, projectId = null) => {
   const query = projectId ? { _id: projectId, user: userId } : { user: userId };
   const project = await Project.findOne(query);
-  if (!project) throw new Error("Project not found for this user.");
+  if (!project) throw interfaceError("Project not found for this user.", "project.notFound");
   return project;
 };
 
@@ -235,7 +236,7 @@ const savePitch = async (userId, projectId, pitch) => {
 const ensurePresentationReady = (project) => {
   const presentation = normalizePresentation(project.presentation || {}, project);
   if (presentation.slides.length === 0) {
-    throw new Error("Generate the presentation before generating the pitch.");
+    throw interfaceError("Generate the presentation before generating the pitch.", "ai.pitchPresentationRequired");
   }
   return presentation;
 };
@@ -251,7 +252,7 @@ const refinePitch = async (project, currentPitch, instructions = "") => {
   const presentation = ensurePresentationReady(project);
   const pitch = normalizePitch(currentPitch, project);
   if (pitch.slides.every((slide) => !slide.speech)) {
-    throw new Error("Current pitch is required to refine.");
+    throw interfaceError("Current pitch is required to refine.", "ai.currentPitchRequiredToRefine");
   }
 
   const prompt = buildPitchRefinementPrompt(project, presentation, pitch, instructions);
@@ -276,7 +277,7 @@ const refinePitchSlide = async (project, currentPitch, slideId, instructions = "
   const pitch = normalizePitch(currentPitch, project);
   const currentSlide = pitch.slides.find((slide) => slide.slideId === slideId);
   if (!currentSlide?.speech) {
-    throw new Error("Current slide speech is required to refine.");
+    throw interfaceError("Current slide speech is required to refine.", "ai.currentSlideSpeechRequiredToRefine");
   }
 
   const prompt = buildPitchSlideRefinementPrompt(project, presentation, pitch, slideId, currentSlide, instructions);
@@ -293,7 +294,7 @@ const translatePitchSlide = async (project, currentPitch, slideId) => {
   const pitch = normalizePitch(currentPitch, project);
   const currentSlide = pitch.slides.find((slide) => slide.slideId === slideId);
   if (!currentSlide?.speech) {
-    throw new Error("Current slide speech is required to translate.");
+    throw interfaceError("Current slide speech is required to translate.", "ai.currentSlideSpeechRequiredToTranslate");
   }
 
   const prompt = buildPitchSlideTranslationPrompt(project, presentation, pitch, slideId, currentSlide);

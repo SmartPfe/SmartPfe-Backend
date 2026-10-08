@@ -9,6 +9,7 @@ const {
 } = require("./reportStudioPromptBuilder");
 const { getSectionRagContext } = require("./reportStudioRagService");
 const { settleCreditCharge, refundCreditCharge } = require("./creditService");
+const { interfaceError, withErrorMessageMetadata } = require("../lib/interfaceMessages");
 
 const VALID_STATUSES = new Set(["not-started", "in-progress", "completed"]);
 const VALID_DETAIL_LEVELS = new Set(["summary", "standard", "detailed"]);
@@ -169,12 +170,12 @@ const parseAiPayload = (content, key) => {
     parsed = JSON.parse(json);
   } catch (error) {
     console.error("[report-studio] Invalid AI JSON response:", text.slice(0, 1000));
-    throw new Error("AI returned invalid report content JSON. Please try again.");
+    throw interfaceError("AI returned invalid report content JSON. Please try again.", "report.invalidContentJson");
   }
 
   const payload = parsed[key] || parsed.chapter || parsed.finalReport || parsed;
   if (!payload?.contentHtml && !payload?.contentMarkdown) {
-    throw new Error("AI did not return valid report content. Please try again.");
+    throw interfaceError("AI did not return valid report content. Please try again.", "report.invalidContent");
   }
   return payload;
 };
@@ -182,7 +183,7 @@ const parseAiPayload = (content, key) => {
 const getProjectForUser = async (userId, projectId = null) => {
   const query = projectId ? { _id: projectId, user: userId } : { user: userId };
   const project = await Project.findOne(query);
-  if (!project) throw new Error("Project not found for this user.");
+  if (!project) throw interfaceError("Project not found for this user.", "project.notFound");
   return project;
 };
 
@@ -215,7 +216,7 @@ const saveReportChapters = async (userId, projectId, reportChapters) => {
 
 const generateChapter = async (project, sectionId, detailLevel = "standard", currentChapters = []) => {
   const section = findSection(project.reportStructure || [], sectionId);
-  if (!section) throw new Error("Report structure section not found.");
+  if (!section) throw interfaceError("Report structure section not found.", "report.sectionNotFound");
   const level = VALID_DETAIL_LEVELS.has(detailLevel) ? detailLevel : "standard";
 
   const ragContext = await getSectionRagContext(project, section, "generate");
@@ -238,8 +239,8 @@ const generateChapter = async (project, sectionId, detailLevel = "standard", cur
 
 const applyChapterAction = async (project, sectionId, action, currentContent, selectedText, currentChapters = [], instructions = "") => {
   const section = findSection(project.reportStructure || [], sectionId);
-  if (!section) throw new Error("Report structure section not found.");
-  if (!currentContent || !stripHtml(currentContent)) throw new Error("Current chapter content is required.");
+  if (!section) throw interfaceError("Report structure section not found.", "report.sectionNotFound");
+  if (!currentContent || !stripHtml(currentContent)) throw interfaceError("Current chapter content is required.", "report.chapterContentRequired");
 
   const isSelectionScope = Boolean(selectedText && selectedText.trim());
   const shouldUseRag = !isSelectionScope && FULL_SECTION_RAG_ACTIONS.has(action);
@@ -276,7 +277,7 @@ const applyChapterAction = async (project, sectionId, action, currentContent, se
 const generateCompleteReport = async (project, currentChapters = []) => {
   const chapters = normalizeChapters(currentChapters.length ? currentChapters : project.reportChapters || [])
     .filter((chapter) => stripHtml(chapter.contentHtml));
-  if (chapters.length === 0) throw new Error("Generated chapters are required before creating the complete report.");
+  if (chapters.length === 0) throw interfaceError("Generated chapters are required before creating the complete report.", "report.generatedChaptersRequired");
   const compilationFingerprint = getCompilationFingerprint(project, chapters);
   if (
     project.finalReport?.sourceFingerprint === compilationFingerprint &&
@@ -338,15 +339,21 @@ const generateChapterStream = async (project, sectionId, detailLevel = "standard
 
   try {
     const section = findSection(project.reportStructure || [], sectionId);
-    if (!section) throw new Error("Report structure section not found.");
+    if (!section) throw interfaceError("Report structure section not found.", "report.sectionNotFound");
     const level = VALID_DETAIL_LEVELS.has(detailLevel) ? detailLevel : "standard";
 
-    sendEvent("status", { step: "rag", message: `Searching thesis literature for "${section.title}"...` });
+    sendEvent("status", {
+      step: "rag",
+      message: `Searching thesis literature for "${section.title}"...`,
+      messageKey: "report.stream.searchingLiterature",
+      messageParams: { sectionTitle: section.title },
+    });
     const ragContext = await getSectionRagContext(project, section, "generate");
 
     sendEvent("status", {
       step: "synthesis",
       message: "Synthesizing section content with Gemini...",
+      messageKey: "report.stream.synthesizing",
       ragInjected: Boolean(ragContext),
     });
 
@@ -385,7 +392,7 @@ const generateChapterStream = async (project, sectionId, detailLevel = "standard
       await refundCreditCharge(req?.creditCharge, err.message || "Streaming chapter generation failed").catch(() => {});
       creditFinalized = true;
     }
-    sendEvent("error", { message: err.message || "Streaming chapter generation failed." });
+    sendEvent("error", withErrorMessageMetadata({ message: err.message || "Streaming chapter generation failed." }, err, "report.stream.failed"));
   } finally {
     clearInterval(heartbeat);
     if (!res.writableEnded) res.end();

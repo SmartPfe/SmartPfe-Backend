@@ -1,4 +1,5 @@
 const nodemailer = require("nodemailer");
+const { getEmailCopy, normalizeEmailLocale } = require("./emailLocale");
 
 // Create reusable transporter object using SMTP transport
 const createTransporter = () => {
@@ -36,6 +37,16 @@ const getSenderAddress = () => {
   return process.env.EMAIL_FROM || process.env.EMAIL_USER || "noreply@smartpfe.com";
 };
 
+// Keep the configured credit-request inbox precedence in one place so callers
+// can resolve a matching admin's preferred email language without changing the
+// delivery recipient.
+const getCreditPurchaseRequestRecipient = () =>
+  process.env.ADMIN_CREDIT_REQUEST_EMAIL ||
+  process.env.ADMIN_EMAIL ||
+  process.env.CONTACT_TO_EMAIL ||
+  process.env.EMAIL_FROM ||
+  process.env.EMAIL_USER;
+
 const escapeHtml = (value = "") =>
   String(value)
     .replace(/&/g, "&amp;")
@@ -44,7 +55,8 @@ const escapeHtml = (value = "") =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 
-const sendResetPasswordEmail = async (email, token) => {
+const sendResetPasswordEmail = async (email, token, uiLanguage = "en") => {
+  const copy = getEmailCopy(uiLanguage).reset;
   const resetLink = `${process.env.FRONTEND_URL}/reset-password/${token}`;
   const transporter = createTransporter();
 
@@ -69,16 +81,16 @@ const sendResetPasswordEmail = async (email, token) => {
     await transporter.sendMail({
       from: `"PFE Guidance Platform" <${getSenderAddress()}>`,
       to: email,
-      subject: "Réinitialisation du mot de passe",
+      subject: copy.subject,
       html: `
-        <h2>Réinitialisation du mot de passe</h2>
-        <p>Vous avez demandé la réinitialisation de votre mot de passe.</p>
+        <h2>${copy.title}</h2>
+        <p>${copy.intro}</p>
         <p>
-          <a href="${resetLink}">
-            Réinitialiser mon mot de passe
+          <a href="${escapeHtml(resetLink)}">
+            ${copy.action}
           </a>
         </p>
-        <p>Ce lien expire dans 1 heure.</p>
+        <p>${copy.expiry}</p>
       `,
     });
 
@@ -99,7 +111,8 @@ const sendResetPasswordEmail = async (email, token) => {
   }
 };
 
-const sendEmailVerificationCode = async (email, code) => {
+const sendEmailVerificationCode = async (email, code, uiLanguage = "en") => {
+  const copy = getEmailCopy(uiLanguage).verification;
   const transporter = createTransporter();
 
   // If email credentials are not yet configured, use development fallback
@@ -123,14 +136,14 @@ const sendEmailVerificationCode = async (email, code) => {
     await transporter.sendMail({
       from: `"PFE Guidance Platform" <${getSenderAddress()}>`,
       to: email,
-      subject: "Verify your email",
+      subject: copy.subject,
       html: `
-        <h2>Verify your email</h2>
-        <p>Use this code to activate your Smart PFE account:</p>
+        <h2>${copy.title}</h2>
+        <p>${copy.intro}</p>
         <p style="font-size: 28px; font-weight: 700; letter-spacing: 8px;">
-          ${code}
+          ${escapeHtml(code)}
         </p>
-        <p>This code expires in 15 minutes.</p>
+        <p>${copy.expiry}</p>
       `,
     });
 
@@ -204,9 +217,11 @@ const sendContactMessageEmail = async ({ name, email, subject, message }) => {
   }
 };
 
-const sendPurchasedCreditsEmail = async ({ email, fullName, amount, balance }) => {
+const sendPurchasedCreditsEmail = async ({ email, fullName, amount, balance, uiLanguage = "en" }) => {
+  const locale = normalizeEmailLocale(uiLanguage);
+  const copy = getEmailCopy(locale).creditsReady;
   const transporter = createTransporter();
-  const safeName = escapeHtml(fullName || "there");
+  const displayName = fullName || "";
   const safeAmount = Math.max(0, Math.trunc(Number(amount) || 0));
   const safeBalance = Math.max(0, Math.trunc(Number(balance) || 0));
 
@@ -219,24 +234,24 @@ const sendPurchasedCreditsEmail = async ({ email, fullName, amount, balance }) =
   await transporter.sendMail({
     from: `"SmartPFE" <${getSenderAddress()}>`,
     to: email,
-    subject: `${safeAmount} SmartPFE credits are ready for your project`,
+    subject: copy.subject(safeAmount),
     html: `
       <div style="margin:0;padding:32px 16px;background:#f7f8fc;font-family:Arial,sans-serif;color:#172033;">
         <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e6e8ef;border-radius:20px;overflow:hidden;">
           <div style="padding:28px 32px;background:linear-gradient(135deg,#5b4bdb,#8b5cf6);color:#ffffff;">
             <div style="font-size:24px;font-weight:800;letter-spacing:-0.5px;">SmartPFE</div>
-            <div style="margin-top:8px;font-size:15px;opacity:.9;">Your project momentum just got a boost.</div>
+            <div style="margin-top:8px;font-size:15px;opacity:.9;">${copy.tagline}</div>
           </div>
           <div style="padding:32px;">
-            <h1 style="margin:0 0 12px;font-size:23px;line-height:1.25;">Your credits are ready, ${safeName}.</h1>
-            <p style="margin:0;color:#526076;font-size:15px;line-height:1.6;">Your purchase has been confirmed and added to your SmartPFE account.</p>
+            <h1 style="margin:0 0 12px;font-size:23px;line-height:1.25;">${escapeHtml(copy.title(displayName))}</h1>
+            <p style="margin:0;color:#526076;font-size:15px;line-height:1.6;">${copy.confirmed}</p>
             <div style="margin:24px 0;padding:20px;border-radius:16px;background:#fff8df;border:1px solid #f6d36b;text-align:center;">
-              <div style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#80600d;">Credits added</div>
+              <div style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#80600d;">${copy.added}</div>
               <div style="margin-top:6px;font-size:36px;font-weight:800;color:#352b08;">+${safeAmount}</div>
-              <div style="margin-top:6px;font-size:13px;color:#80600d;">Purchased balance: ${safeBalance} credits</div>
+              <div style="margin-top:6px;font-size:13px;color:#80600d;">${copy.balance(safeBalance)}</div>
             </div>
-            <p style="margin:0;color:#526076;font-size:14px;line-height:1.6;">You can now continue generating your report, presentation, pitch, and defense preparation materials from your workspace.</p>
-            <p style="margin:24px 0 0;color:#8a94a6;font-size:12px;line-height:1.5;">If you did not make this purchase, please contact the SmartPFE team.</p>
+            <p style="margin:0;color:#526076;font-size:14px;line-height:1.6;">${copy.next}</p>
+            <p style="margin:24px 0 0;color:#8a94a6;font-size:12px;line-height:1.5;">${copy.help}</p>
           </div>
         </div>
       </div>`,
@@ -245,14 +260,11 @@ const sendPurchasedCreditsEmail = async ({ email, fullName, amount, balance }) =
   return { sent: true };
 };
 
-const sendCreditPurchaseRequestEmail = async ({ request }) => {
+const sendCreditPurchaseRequestEmail = async ({ request, uiLanguage = "en" }) => {
+  const locale = normalizeEmailLocale(uiLanguage);
+  const copy = getEmailCopy(locale).adminCreditRequest;
   const transporter = createTransporter();
-  const recipient =
-    process.env.ADMIN_CREDIT_REQUEST_EMAIL ||
-    process.env.ADMIN_EMAIL ||
-    process.env.CONTACT_TO_EMAIL ||
-    process.env.EMAIL_FROM ||
-    process.env.EMAIL_USER;
+  const recipient = getCreditPurchaseRequestRecipient();
   const requestId = String(request._id || request.id || "");
   const createdAt = request.createdAt ? new Date(request.createdAt) : new Date();
   const payload = {
@@ -277,27 +289,27 @@ const sendCreditPurchaseRequestEmail = async ({ request }) => {
     from: `"SmartPFE" <${getSenderAddress()}>`,
     to: recipient,
     replyTo: request.email,
-    subject: "New Credit Purchase Request",
+    subject: copy.subject,
     html: `
       <div style="margin:0;padding:28px 16px;background:#f7f8fc;font-family:Arial,sans-serif;color:#172033;">
         <div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e6e8ef;border-radius:18px;overflow:hidden;">
           <div style="padding:24px 28px;background:#172033;color:#ffffff;">
-            <div style="font-size:22px;font-weight:800;">New Credit Purchase Request</div>
-            <div style="margin-top:6px;font-size:13px;color:#d9deea;">Review this request from the Admin Dashboard.</div>
+            <div style="font-size:22px;font-weight:800;">${copy.title}</div>
+            <div style="margin-top:6px;font-size:13px;color:#d9deea;">${copy.dashboard}</div>
           </div>
           <div style="padding:28px;">
             <p style="margin:0 0 18px;font-size:14px;line-height:1.6;color:#526076;">
-              A student submitted a manual credit purchase request. Contact the student to confirm payment, then fulfill the wallet from the Admin Dashboard.
+              ${copy.intro}
             </p>
             <table style="width:100%;border-collapse:collapse;font-size:14px;">
-              <tr><td style="padding:9px 0;color:#697386;">Student name</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.studentName)}</td></tr>
-              <tr><td style="padding:9px 0;color:#697386;">Student email</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.email)}</td></tr>
-              <tr><td style="padding:9px 0;color:#697386;">Phone number</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.phone)}</td></tr>
-              <tr><td style="padding:9px 0;color:#697386;">Requested credits</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.requestedCredits)}</td></tr>
-              <tr><td style="padding:9px 0;color:#697386;">Package</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.packageLabel || "Custom amount")}</td></tr>
-              <tr><td style="padding:9px 0;color:#697386;">Price</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.price)} ${escapeHtml(request.currency || "TND")}</td></tr>
-              <tr><td style="padding:9px 0;color:#697386;">Request date</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(createdAt.toLocaleString("en-GB", { timeZone: "Africa/Tunis" }))}</td></tr>
-              <tr><td style="padding:9px 0;color:#697386;">Request ID</td><td style="padding:9px 0;font-family:monospace;font-weight:700;">${escapeHtml(requestId)}</td></tr>
+              <tr><td style="padding:9px 0;color:#697386;">${copy.studentName}</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.studentName)}</td></tr>
+              <tr><td style="padding:9px 0;color:#697386;">${copy.studentEmail}</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.email)}</td></tr>
+              <tr><td style="padding:9px 0;color:#697386;">${copy.phone}</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.phone)}</td></tr>
+              <tr><td style="padding:9px 0;color:#697386;">${copy.credits}</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.requestedCredits)}</td></tr>
+              <tr><td style="padding:9px 0;color:#697386;">${copy.package}</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.packageLabel || copy.customAmount)}</td></tr>
+              <tr><td style="padding:9px 0;color:#697386;">${copy.price}</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(request.price)} ${escapeHtml(request.currency || "TND")}</td></tr>
+              <tr><td style="padding:9px 0;color:#697386;">${copy.requestDate}</td><td style="padding:9px 0;font-weight:700;">${escapeHtml(createdAt.toLocaleString(locale === "fr" ? "fr-TN" : "en-GB", { timeZone: "Africa/Tunis" }))}</td></tr>
+              <tr><td style="padding:9px 0;color:#697386;">${copy.requestId}</td><td style="padding:9px 0;font-family:monospace;font-weight:700;">${escapeHtml(requestId)}</td></tr>
             </table>
           </div>
         </div>
@@ -307,33 +319,35 @@ const sendCreditPurchaseRequestEmail = async ({ request }) => {
   return { sent: true };
 };
 
-const sendCreditPurchaseReceiptEmail = async ({ request }) => {
+const sendCreditPurchaseReceiptEmail = async ({ request, uiLanguage = "en" }) => {
+  const locale = normalizeEmailLocale(uiLanguage);
+  const copy = getEmailCopy(locale).creditReceipt;
   const transporter = createTransporter();
   if (!transporter) return { sent: false };
   const requestId = String(request._id);
   const frontendUrl = String(process.env.FRONTEND_URL || "http://localhost:3000").split(",")[0].trim().replace(/\/$/, "");
   const historyUrl = `${frontendUrl}/workspace/settings/credits?request=${encodeURIComponent(requestId)}`;
-  const date = new Date(request.createdAt).toLocaleString("en-GB", { timeZone: "Africa/Tunis" });
+  const date = new Date(request.createdAt).toLocaleString(locale === "fr" ? "fr-TN" : "en-GB", { timeZone: "Africa/Tunis" });
   const rows = [
-    ["Request ID", requestId], ["Submitted", `${date} (Tunisia time)`],
-    ["Package", request.packageLabel || "Custom amount"], ["Credits requested", request.requestedCredits],
-    ["Amount to pay", `${request.price} ${request.currency}`], ["Contact phone", request.phone],
-    ["Status", "Pending — awaiting contact from our team"],
+    [copy.requestId, requestId], [copy.submitted, `${date} (${copy.tunisiaTime})`],
+    [copy.package, request.packageLabel || copy.customAmount], [copy.credits, request.requestedCredits],
+    [copy.amount, `${request.price} ${request.currency}`], [copy.phone, request.phone],
+    [copy.status, copy.pending],
   ];
-  const nextSteps = "A team member will contact you as soon as possible to explain how to make your payment. After your payment is verified, an administrator will add the credits to your wallet. Your request is saved; no payment has been collected through SmartPFE.";
+  const nextSteps = copy.nextSteps;
   await transporter.sendMail({
     from: `"SmartPFE" <${getSenderAddress()}>`,
     to: request.email,
-    subject: `We've received your request for ${request.requestedCredits} SmartPFE credits`,
-    text: `Hello ${request.studentName},\n\nYour credit request has been submitted successfully.\n\n${rows.map(([label, value]) => `${label}: ${value}`).join("\n")}\n\n${nextSteps}\n\nTrack your request: ${historyUrl}`,
+    subject: copy.subject(request.requestedCredits),
+    text: `${copy.thankYou(request.studentName)}\n\n${copy.intro}\n\n${rows.map(([label, value]) => `${label}: ${value}`).join("\n")}\n\n${nextSteps}\n\n${copy.viewHistory}: ${historyUrl}`,
     html: `<div style="background:#f7f8fc;padding:32px 16px;font-family:Arial,sans-serif;color:#172033">
       <div style="max-width:580px;margin:auto;background:white;border:1px solid #e6e8ef;border-radius:20px;overflow:hidden">
-        <div style="background:#5b4bdb;color:white;padding:28px 32px"><div style="font-size:24px;font-weight:800">SmartPFE</div><p style="margin:10px 0 0">Your credit request is received</p></div>
-        <div style="padding:32px"><h1 style="font-size:22px;margin:0 0 12px">Thank you, ${escapeHtml(request.studentName)}.</h1>
+        <div style="background:#5b4bdb;color:white;padding:28px 32px"><div style="font-size:24px;font-weight:800">SmartPFE</div><p style="margin:10px 0 0">${copy.received}</p></div>
+        <div style="padding:32px"><h1 style="font-size:22px;margin:0 0 12px">${escapeHtml(copy.thankYou(request.studentName))}</h1>
           <p style="color:#526076;line-height:1.7">${escapeHtml(nextSteps)}</p>
           <table style="width:100%;font-size:14px;border-collapse:collapse">${rows.map(([label, value]) => `<tr><td style="padding:10px 0;border-bottom:1px solid #e6e8ef;color:#697386">${escapeHtml(label)}</td><td style="padding:10px 0;border-bottom:1px solid #e6e8ef;word-break:break-word;font-weight:700">${escapeHtml(value)}</td></tr>`).join("")}</table>
-          <p style="margin:28px 0"><a href="${escapeHtml(historyUrl)}" style="background:#5b4bdb;color:white;padding:13px 20px;border-radius:10px;text-decoration:none;font-weight:700;display:inline-block">View my credit history</a></p>
-          <p style="font-size:12px;color:#697386">Keep this email as a record of your request. You can follow its status anytime in Settings → Credit History.</p>
+          <p style="margin:28px 0"><a href="${escapeHtml(historyUrl)}" style="background:#5b4bdb;color:white;padding:13px 20px;border-radius:10px;text-decoration:none;font-weight:700;display:inline-block">${copy.viewHistory}</a></p>
+          <p style="font-size:12px;color:#697386">${copy.keepRecord}</p>
         </div>
       </div></div>`,
   });
@@ -346,5 +360,6 @@ module.exports = {
   sendContactMessageEmail,
   sendPurchasedCreditsEmail,
   sendCreditPurchaseRequestEmail,
+  getCreditPurchaseRequestRecipient,
   sendCreditPurchaseReceiptEmail,
 };

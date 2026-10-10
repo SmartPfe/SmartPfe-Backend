@@ -114,8 +114,9 @@ test("concurrent onboarding claims cannot both proceed and failure releases the 
   const request = await api(t);
   t.mock.method(Project, "exists", async () => false);
   let claimed = false;
-  t.mock.method(User, "findOneAndUpdate", async filter => {
+  t.mock.method(User, "findOneAndUpdate", async (filter, update) => {
     assert.deepEqual(filter.hasCompletedOnboarding, { $ne: true });
+    assert.equal(update.$set.workspaceTourStatus, "pending");
     if (claimed) return null;
     claimed = true;
     return { _id: filter._id };
@@ -129,7 +130,35 @@ test("concurrent onboarding claims cannot both proceed and failure releases the 
   assert.equal((await request("/projects/onboarding", "POST", {})).status, 500);
   assert.equal(create.mock.callCount(), 1);
   assert.equal(release.mock.callCount(), 1);
+  assert.equal(release.mock.calls[0].arguments[1].$unset.workspaceTourStatus, 1);
   assert.equal(claimed, false);
+});
+
+test("workspace tour state belongs to the authenticated student and accepts only terminal statuses", async t => {
+  const request = await api(t); request.user.hasCompletedOnboarding = true;
+  assert.deepEqual(await (await request('/auth/workspace-tour')).json(), { status: 'inactive', eligible: true });
+  request.user.workspaceTourStatus = 'pending';
+  assert.deepEqual(await (await request('/auth/workspace-tour')).json(), { status: 'pending', eligible: true });
+  assert.equal((await request('/auth/workspace-tour', 'GET', undefined, null)).status, 401);
+  const update = t.mock.method(User, 'updateOne', async (filter, write) => {
+    assert.deepEqual(filter, { _id: request.user._id, hasCompletedOnboarding: true });
+    request.user.workspaceTourStatus = write.$set.workspaceTourStatus; return { matchedCount: 1 };
+  });
+  for (const status of ['pending', 'invalid', { $ne: null }, null]) assert.equal((await request('/auth/workspace-tour', 'PUT', { status })).status, 400);
+  assert.equal(update.mock.callCount(), 0);
+  for (const status of ['skipped', 'completed']) {
+    assert.equal((await request('/auth/workspace-tour', 'PUT', { status, userId: 'another-account' })).status, 200);
+    assert.equal((await (await request('/auth/workspace-tour')).json()).status, status);
+  }
+  update.mock.mockImplementation(async () => ({ matchedCount: 0 }));
+  assert.equal((await request('/auth/workspace-tour', 'PUT', { status: 'completed' })).status, 409);
+});
+
+test("administrator accounts cannot access or change the student workspace tour", async t => {
+  const request = await api(t, 'admin');
+  t.mock.method(User, 'updateOne', () => assert.fail('Admin must not write student tour state'));
+  assert.equal((await request('/auth/workspace-tour')).status, 403);
+  assert.equal((await request('/auth/workspace-tour', 'PUT', { status: 'completed' })).status, 403);
 });
 
 test("database administrator roles pass the admin gate", () => {

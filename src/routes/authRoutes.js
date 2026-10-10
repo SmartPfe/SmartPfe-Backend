@@ -23,6 +23,7 @@ const {
 
 const {
   protect,
+  studentOnly,
 } = require("../middleware/authMiddleware");
 
 router.post("/register", registerUser);
@@ -47,6 +48,21 @@ router.post("/google/disconnect", protect, disconnectGoogle);
 
 router.get("/preferences", protect, getPreferences);
 router.put("/preferences", protect, updatePreferences);
+
+router.get("/workspace-tour", protect, studentOnly, (req, res) => {
+  res.json({ status: req.user.workspaceTourStatus || "inactive",
+    eligible: req.user.hasCompletedOnboarding === true });
+});
+router.put("/workspace-tour", protect, studentOnly, async (req, res, next) => {
+  const { status } = req.body || {};
+  if (status !== "completed" && status !== "skipped") return res.status(400).json({ message: "Invalid tour status" });
+  try {
+    const User = require("../models/User");
+    const result = await User.updateOne({ _id: req.user._id, hasCompletedOnboarding: true }, { $set: { workspaceTourStatus: status } });
+    if (!result.matchedCount) return res.status(409).json({ message: "Complete onboarding first" });
+    res.json({ status });
+  } catch (error) { next(error); }
+});
 
 router.get(
   "/profile",

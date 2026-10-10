@@ -77,7 +77,7 @@ const createProject = async (req, res) => {
     // Claim once atomically so concurrent submissions cannot create duplicate projects.
     claimedUser = await User.findOneAndUpdate(
       { _id: req.user._id, hasCompletedOnboarding: { $ne: true } },
-      { $set: { hasCompletedOnboarding: true } }, { new: true }
+      { $set: { hasCompletedOnboarding: true, workspaceTourStatus: "pending" } }, { new: true }
     );
     if (!claimedUser) return res.status(409).json({ message: "Onboarding is already completed." });
 
@@ -113,7 +113,7 @@ const createProject = async (req, res) => {
 
     res.status(201).json(project);
   } catch (error) {
-    if (claimedUser && !projectCreated) await User.updateOne({ _id: req.user._id }, { $set: { hasCompletedOnboarding: false } });
+    if (claimedUser && !projectCreated) await User.updateOne({ _id: req.user._id }, { $set: { hasCompletedOnboarding: false }, $unset: { workspaceTourStatus: 1 } });
     console.error("[project] createProject error:", error.message);
     res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
   }

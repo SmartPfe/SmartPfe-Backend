@@ -60,6 +60,7 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    workspaceTourStatus: { type: String, enum: ["pending", "completed", "skipped"] },
     role: {
       type: String,
       enum: ["admin", "etudiant"],

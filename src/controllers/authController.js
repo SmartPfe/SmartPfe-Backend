@@ -42,6 +42,14 @@ const setEmailVerificationCode = (user) => {
   return code;
 };
 
+// Only public profile details from a verified Google identity; never expose the subject or tokens.
+const publicGoogleAccount = (user) => user.googleId && user.googleProfile?.email
+  ? { fullName: user.googleProfile.fullName || "", email: user.googleProfile.email }
+  : null;
+const googleProfileFrom = (identity) => ({
+  fullName: typeof identity.fullName === "string" ? identity.fullName.slice(0, 200) : "",
+  email: identity.email,
+});
 const buildAuthResponse = (user, authProvider = "email") => ({
   _id: user._id,
   fullName: user.fullName,
@@ -49,6 +57,7 @@ const buildAuthResponse = (user, authProvider = "email") => ({
   avatar: user.avatar,
   authProvider,
   googleConnected: Boolean(user.googleId), hasPassword: Boolean(user.password),
+  googleAccount: publicGoogleAccount(user),
   emailVerified: user.emailVerified !== false,
   hasCompletedOnboarding: user.hasCompletedOnboarding,
   role: user.role || "etudiant",
@@ -282,7 +291,7 @@ const getProfile = async (req, res) => {
   try {
 
     const user = await User.findById(req.user._id)
-      .select("fullName email avatar role uiLanguage hasCompletedOnboarding emailVerified googleId password");
+      .select("fullName email avatar role uiLanguage hasCompletedOnboarding emailVerified googleId googleProfile password");
 
     res.json({
       _id: user._id, fullName: user.fullName, email: user.email, avatar: user.avatar,
@@ -291,6 +300,7 @@ const getProfile = async (req, res) => {
       emailVerified: user.emailVerified !== false,
       authProvider: user.googleId && !user.password ? "google" : "email",
       googleConnected: Boolean(user.googleId), hasPassword: Boolean(user.password),
+      googleAccount: publicGoogleAccount(user),
     });
 
   } catch (error) {
@@ -392,6 +402,7 @@ const updateProfile = async (req, res) => {
       avatar: user.avatar,
       authProvider: "email",
       googleConnected: Boolean(user.googleId), hasPassword: Boolean(user.password),
+      googleAccount: publicGoogleAccount(user),
       emailVerified: user.emailVerified !== false,
       hasCompletedOnboarding: user.hasCompletedOnboarding,
       role: user.role || "etudiant",
@@ -495,13 +506,19 @@ const googleLogin = async (req, res) => {
         return res.status(409).json(withMessageMetadata({ message: "Sign in with your existing login method, then connect Google in Account & Security.", code: "GOOGLE_LINK_REQUIRED" }, "auth.googleLinkRequired"));
       }
       user = await User.create({ fullName: fullName || email.split("@")[0], email, googleId,
-        avatar: picture, role: "etudiant", emailVerified: authoritativeEmail, uiLanguage: requestUiLanguage(req) });
+        googleProfile: googleProfileFrom(identity), avatar: picture, role: "etudiant", emailVerified: authoritativeEmail, uiLanguage: requestUiLanguage(req) });
       if (authoritativeEmail) {
         await getWalletForUser(user);
         await createAdminNotification({ title: "New Google user registered", titleKey: "events.googleUserRegistered.title",
           messageKey: "events.googleUserRegistered.message", messageParams: { name: user.fullName },
           message: user.fullName + " joined the platform with Google.", type: "info" });
       }
+    } else {
+      // Conditional update cannot restore a link that was disconnected during sign-in.
+      user = await User.findOneAndUpdate({ _id: user._id, googleId,
+        $or: [{ sessionVersion: user.sessionVersion || "0" }, { sessionVersion: { $exists: false } }] },
+        { $set: { googleProfile: googleProfileFrom(identity) } }, { new: true });
+      if (!user) return res.status(409).json(withMessageMetadata({ message: "The account changed. Please sign in again." }, "auth.googleLinkConflict"));
     }
     if (user.emailVerified === false) {
       const verificationCode = setEmailVerificationCode(user);
@@ -529,7 +546,8 @@ const connectGoogle = async (req, res) => {
     if (!user?.password || user.emailVerified === false || !req.body?.currentPassword || !await user.matchPassword(req.body.currentPassword)) {
       return res.status(401).json(withMessageMetadata({ message: "Confirm your current password to connect Google." }, "auth.googlePasswordRequired"));
     }
-    const { googleId, email } = await googleIdentity.verifyGoogleIdentity(req.body.credential);
+    const identity = await googleIdentity.verifyGoogleIdentity(req.body.credential);
+    const { googleId, email } = identity;
     if (email !== user.email || (user.googleId && user.googleId !== googleId)) {
       return res.status(409).json(withMessageMetadata({ message: "Choose the Google account with your SmartPFE email. An existing Google link cannot be replaced." }, "auth.googleLinkConflict"));
     }
@@ -537,11 +555,33 @@ const connectGoogle = async (req, res) => {
     const linked = await User.findOneAndUpdate({ _id: user._id, password: user.password, emailVerified: true,
       $and: [{ $or: [{ googleId: { $exists: false } }, { googleId: null }] },
         { $or: [{ sessionVersion: user.sessionVersion || "0" }, { sessionVersion: { $exists: false } }] }] },
-      { $set: { googleId, sessionVersion: crypto.randomUUID() } }, { new: true, runValidators: true });
+      { $set: { googleId, googleProfile: googleProfileFrom(identity), sessionVersion: crypto.randomUUID() } }, { new: true, runValidators: true });
     if (!linked) return res.status(409).json(withMessageMetadata({ message: "The account changed. Please sign in again before connecting Google." }, "auth.googleLinkConflict"));
     return res.json(buildAuthResponse(linked, "email"));
   } catch (error) {
     return res.status(error.code === 11000 ? 409 : error.status || 500).json(withMessageMetadata({ message: "Could not connect Google. Please try again." }, error.code === 11000 ? "auth.googleLinkConflict" : "auth.googleAuthenticationFailed"));
+  }
+};
+
+const disconnectGoogle = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user?.googleId) return res.status(409).json(withMessageMetadata({ message: "Google is not connected to this account." }, "auth.googleNotConnected"));
+    if (!user.password || user.emailVerified === false) {
+      return res.status(409).json(withMessageMetadata({ message: "Set a SmartPFE password before disconnecting Google so you can still sign in." }, "auth.googlePasswordBeforeDisconnect"));
+    }
+    if (!req.body?.currentPassword || !await user.matchPassword(req.body.currentPassword)) {
+      return res.status(401).json(withMessageMetadata({ message: "Current password is incorrect." }, "auth.currentPasswordIncorrect"));
+    }
+    const disconnected = await User.findOneAndUpdate({ _id: user._id, googleId: user.googleId,
+      password: user.password, emailVerified: true,
+      $or: [{ sessionVersion: user.sessionVersion || "0" }, { sessionVersion: { $exists: false } }] },
+      { $unset: { googleId: 1, googleProfile: 1 }, $set: { sessionVersion: crypto.randomUUID() } },
+      { new: true, runValidators: true });
+    if (!disconnected) return res.status(409).json(withMessageMetadata({ message: "The account changed. Please sign in again." }, "auth.googleLinkConflict"));
+    return res.json(buildAuthResponse(disconnected, "email"));
+  } catch (_) {
+    return res.status(500).json(withMessageMetadata({ message: "Could not disconnect Google. Please try again." }, "auth.googleDisconnectFailed"));
   }
 };
 
@@ -558,4 +598,5 @@ module.exports = {
   resetPassword,
   googleLogin,
   connectGoogle,
+  disconnectGoogle,
 };

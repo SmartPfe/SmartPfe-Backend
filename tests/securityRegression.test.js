@@ -62,6 +62,8 @@ test('connecting Google retains the password, account ID and role and revokes ol
   assert.equal(response.status, 200);
   const data = await response.json(); assert.equal(data._id, user._id); assert.equal(data.role, 'admin');
   assert.equal(data.hasPassword, true); assert.equal(data.googleConnected, true); assert.equal(data.password, undefined);
+  assert.deepEqual(data.googleAccount, { fullName: 'Google name', email: 'same@example.com' });
+  assert.equal(data.googleId, undefined);
   assert.equal(user.password, 'existing-password-hash'); assert.equal(user.fullName, 'Existing name');
   assert.equal((await request('/auth/profile', { headers: { Authorization: 'Bearer ' + token } })).status, 401);
   assert.equal((await request('/auth/profile', { headers: { Authorization: 'Bearer ' + data.token } })).status, 200);
@@ -79,9 +81,58 @@ test('linked Google login uses its immutable subject even when Google email chan
   const { user, post } = await authApi(t); user.googleId = identity.googleId;
   t.mock.method(google, 'verifyGoogleIdentity', async () => ({ ...identity, email: 'changed@example.com' }));
   t.mock.method(User, 'findOne', async filter => { assert.equal(filter.googleId, identity.googleId); return user; });
+  t.mock.method(User, 'findOneAndUpdate', async (filter, update) => {
+    assert.equal(filter.googleId, identity.googleId); Object.assign(user, update.$set); return user;
+  });
   t.mock.method(User, 'exists', () => assert.fail('Must not match by email'));
   const response = await post('/auth/google', { credential: 'fixture' }, false);
   assert.equal(response.status, 200); const data = await response.json(); assert.equal(data._id, user._id); assert.equal(data.email, 'same@example.com'); assert.equal(data.hasPassword, true);
+  assert.deepEqual(data.googleAccount, { fullName: 'Google name', email: 'changed@example.com' });
+});
+
+test('disconnecting Google requires a session, scalar password proof and a remaining login method', async t => {
+  const { user, post } = await authApi(t); user.googleId = identity.googleId;
+  t.mock.method(User, 'findOneAndUpdate', () => assert.fail('Must not disconnect without proof'));
+  assert.equal((await post('/auth/google/disconnect', { currentPassword: 'old-password' }, false)).status, 401);
+  assert.equal((await post('/auth/google/disconnect', { currentPassword: { $ne: null } })).status, 400);
+  assert.equal((await post('/auth/google/disconnect', {})).status, 401);
+  assert.equal((await post('/auth/google/disconnect', { currentPassword: 'wrong' })).status, 401);
+  user.password = undefined;
+  const blocked = await post('/auth/google/disconnect', { currentPassword: 'old-password' });
+  assert.equal(blocked.status, 409); assert.equal((await blocked.json()).messageKey, 'auth.googlePasswordBeforeDisconnect');
+  assert.equal(user.googleId, identity.googleId);
+});
+
+test('disconnecting Google preserves the native account, removes the link and revokes all previous sessions', async t => {
+  const { user, post, request, token } = await authApi(t, 'admin');
+  user.googleId = identity.googleId; user.googleProfile = { fullName: identity.fullName, email: identity.email };
+  t.mock.method(User, 'findOneAndUpdate', async (filter, update) => {
+    assert.equal(filter._id, user._id); assert.equal(filter.googleId, identity.googleId);
+    assert.equal(filter.password, 'existing-password-hash'); assert.ok(filter.$or);
+    assert.deepEqual(update.$unset, { googleId: 1, googleProfile: 1 });
+    Object.assign(user, update.$set); delete user.googleId; delete user.googleProfile; return user;
+  });
+  const result = await post('/auth/google/disconnect', { currentPassword: 'old-password' });
+  assert.equal(result.status, 200); const data = await result.json();
+  assert.equal(data.googleConnected, false); assert.equal(data.googleAccount, null); assert.equal(data.hasPassword, true);
+  assert.equal(data._id, user._id); assert.equal(data.role, 'admin'); assert.equal(user.fullName, 'Existing name');
+  assert.equal(user.password, 'existing-password-hash'); assert.equal(data.googleId, undefined); assert.equal(data.password, undefined);
+  assert.equal((await request('/auth/profile', { headers: { Authorization: 'Bearer ' + token } })).status, 401);
+  assert.equal((await request('/auth/profile', { headers: { Authorization: 'Bearer ' + data.token } })).status, 200);
+  t.mock.method(google, 'verifyGoogleIdentity', async () => identity);
+  t.mock.method(User, 'findOne', async () => null); t.mock.method(User, 'exists', async () => ({ _id: user._id }));
+  t.mock.method(User, 'create', () => assert.fail('Disconnected Google must not create a duplicate account'));
+  assert.equal((await post('/auth/google', { credential: 'fixture' }, false)).status, 409);
+});
+
+test('Google disconnect and sign-in cannot succeed after a concurrent link change', async t => {
+  const { user, post } = await authApi(t); user.googleId = identity.googleId;
+  t.mock.method(User, 'findOneAndUpdate', async () => null);
+  assert.equal((await post('/auth/google/disconnect', { currentPassword: 'old-password' })).status, 409);
+  t.mock.method(google, 'verifyGoogleIdentity', async () => identity);
+  t.mock.method(User, 'findOne', async () => user);
+  const result = await post('/auth/google', { credential: 'fixture' }, false);
+  assert.equal(result.status, 409); assert.equal((await result.json()).token, undefined);
 });
 test('a new external-email Google account must verify its mailbox before any session is issued', async t => {
   const { user, post } = await authApi(t);

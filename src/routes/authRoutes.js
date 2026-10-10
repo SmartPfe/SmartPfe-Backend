@@ -18,6 +18,7 @@ const {
   resetPassword,
   googleLogin,
   connectGoogle,
+  disconnectGoogle,
 } = require("../controllers/authController");
 
 const {
@@ -42,6 +43,7 @@ router.post("/login", loginUser);
 
 router.post("/google", googleLogin);
 router.post("/google/connect", protect, connectGoogle);
+router.post("/google/disconnect", protect, disconnectGoogle);
 
 router.get("/preferences", protect, getPreferences);
 router.put("/preferences", protect, updatePreferences);

@@ -32,6 +32,10 @@ const userSchema = new mongoose.Schema(
       unique: true,
       sparse: true,
     },
+    googleProfile: {
+      fullName: { type: String, trim: true },
+      email: { type: String, trim: true, lowercase: true },
+    },
     avatar: {
       type: String,
     },

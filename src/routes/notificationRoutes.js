@@ -14,6 +14,6 @@ router.get("/unread-count", protect, getUnreadCount);
 router.patch("/:id/read", protect, markNotificationRead);
 router.patch("/read", protect, markNotificationsRead);
 router.patch("/read-all", protect, markNotificationsRead);
-router.get("/stream", streamNotifications);
+router.get("/stream", protect, streamNotifications);
 
 module.exports = router;

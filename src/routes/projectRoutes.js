@@ -30,7 +30,8 @@ const {
   getJuryQASessions,
   getJuryQASession,
 } = require("../controllers/projectController");
-const { protect } = require("../middleware/authMiddleware");
+const { protect, studentOnly } = require("../middleware/authMiddleware");
+router.use(protect, studentOnly);
 
 // All project routes require authentication
 router.post("/onboarding", protect, createProject);

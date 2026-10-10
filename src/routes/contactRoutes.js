@@ -5,6 +5,7 @@ const {
   submitContactMessage,
 } = require("../controllers/contactController");
 
-router.post("/", submitContactMessage);
+const { contactLimiter, contactBody } = require("../middleware/contactGuard");
+router.post("/", contactLimiter, contactBody, submitContactMessage);
 
 module.exports = router;

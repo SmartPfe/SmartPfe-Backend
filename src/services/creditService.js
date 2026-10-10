@@ -141,8 +141,11 @@ const recoverExpiredCharges = async (userId, timezone) => {
   const cutoff = new Date(Date.now() - RESERVATION_TTL_MS);
   const staleTransactions = await CreditTransaction.find({
     user: userId,
-    status: { $in: ["pending", "reserved"] },
-    createdAt: { $lte: cutoff },
+    // Only an incomplete admission can be automatically rolled back. A reserved
+    // job may have produced/saved output before a crash: retain it for review.
+    status: "pending",
+    updatedAt: { $lte: cutoff },
+    "metadata.aiCompleted": { $ne: true },
   }).limit(20);
 
   for (const transaction of staleTransactions) {
@@ -652,8 +655,26 @@ const reserveCreditCharge = async ({ user, actionKey, requestId, expectedPolicyV
   }
 };
 
-const settleCreditCharge = async (charge) => {
+// Refresh live work independently of its HTTP connection. Stale recovery may
+// refund abandoned reservations, never a still-running or completed generation.
+const renewCreditChargeLease = async (charge) => {
+  const expiresAt = new Date(Date.now() + RESERVATION_TTL_MS);
+  await AiConcurrencyLock.updateOne({ user: charge.userId, "activeRequests.requestId": charge.requestId },
+    { $set: { "activeRequests.$.expiresAt": expiresAt } });
+  await CreditTransaction.updateOne({ requestId: charge.requestId, status: { $in: ["pending", "reserved"] } },
+    { $set: { updatedAt: new Date() } });
+  await CreditWallet.updateOne({ user: charge.userId, "reservations.requestId": charge.requestId },
+    { $set: { "reservations.$.expiresAt": expiresAt } });
+};
+
+const releaseCreditSlot = async (charge) => {
+  if (charge) await releaseAiSlot({ userId: charge.userId, requestId: charge.requestId });
+};
+
+const settleCreditCharge = async (charge, { releaseSlot = true } = {}) => {
   if (!charge) return null;
+  await CreditTransaction.updateOne({ requestId: charge.requestId, status: "reserved" },
+    { $set: { "metadata.aiCompleted": true } });
   const transaction = await CreditTransaction.findOne({ requestId: charge.requestId });
   if (!transaction) throw new CreditError("Credit transaction not found.", "CREDIT_TRANSACTION_NOT_FOUND", 500);
   if (transaction.status === "settled") {
@@ -684,7 +705,7 @@ const settleCreditCharge = async (charge) => {
   transaction.settledAt = new Date();
   transaction.balanceAfter = walletPayload(wallet || await CreditWallet.findOne({ user: transaction.user }));
   await transaction.save();
-  await releaseAiSlot({ userId: transaction.user, requestId: transaction.requestId });
+  if (releaseSlot) await releaseAiSlot({ userId: transaction.user, requestId: transaction.requestId });
   return {
     charged: transaction.chargedCost,
     quotedCost: transaction.quotedCost,
@@ -696,11 +717,11 @@ const settleCreditCharge = async (charge) => {
   };
 };
 
-const refundCreditCharge = async (charge, reason = "AI request failed") => {
+const refundCreditCharge = async (charge, reason = "AI request failed", { releaseSlot = true } = {}) => {
   if (!charge) return null;
   const transaction = await CreditTransaction.findOne({ requestId: charge.requestId });
   if (!transaction || ["refunded", "cancelled"].includes(transaction.status)) return null;
-  if (transaction.status === "settled") return null;
+  if (transaction.status === "settled" || transaction.metadata?.aiCompleted === true) return null;
   let wallet = await CreditWallet.findOne({ user: transaction.user });
   if (transaction.chargedCost > 0) {
     wallet = await CreditWallet.findOneAndUpdate(
@@ -731,7 +752,7 @@ const refundCreditCharge = async (charge, reason = "AI request failed") => {
   transaction.reason = String(reason || "AI request failed").slice(0, 500);
   transaction.balanceAfter = walletPayload(wallet || await CreditWallet.findOne({ user: transaction.user }));
   await transaction.save();
-  await releaseAiSlot({ userId: transaction.user, requestId: transaction.requestId });
+  if (releaseSlot) await releaseAiSlot({ userId: transaction.user, requestId: transaction.requestId });
   return {
     refunded: transaction.chargedCost,
     balance: transaction.balanceAfter,
@@ -918,6 +939,8 @@ module.exports = {
   getWalletForUser,
   reserveCreditCharge,
   settleCreditCharge,
+  releaseCreditSlot,
+  renewCreditChargeLease,
   refundCreditCharge,
   releaseAiSlot,
   listPolicies,

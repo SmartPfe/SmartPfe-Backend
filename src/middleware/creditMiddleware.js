@@ -1,10 +1,6 @@
 const crypto = require("crypto");
-const {
-  CreditError,
-  reserveCreditCharge,
-  settleCreditCharge,
-  refundCreditCharge,
-} = require("../services/creditService");
+const creditService = require("../services/creditService");
+const { CreditError } = creditService;
 const { withCreditErrorMetadata, withMessageMetadata } = require("../lib/interfaceMessages");
 
 const sendCreditError = (error, res, next) => {
@@ -35,7 +31,7 @@ const creditGate = (actionResolver, options = {}) => async (req, res, next) => {
     );
     if (!resolution?.actionKey) return next();
 
-    charge = await reserveCreditCharge({
+    charge = await creditService.reserveCreditCharge({
       user: req.user,
       actionKey: resolution.actionKey,
       requestId: resolveRequestId(req),
@@ -51,54 +47,64 @@ const creditGate = (actionResolver, options = {}) => async (req, res, next) => {
     });
     req.creditCharge = charge;
 
+    // A disconnected socket is not a failed AI operation. Finalize from the
+    // server outcome, once only, even if the caller has gone away.
+    let renewing = false;
+    const leaseTimer = setInterval(async () => {
+      if (renewing) return;
+      renewing = true;
+      try { await creditService.renewCreditChargeLease(charge); }
+      catch (error) { console.error("[credits] Lease renewal failed:", error.message); }
+      finally { renewing = false; }
+    }, 60000);
+    leaseTimer.unref?.();
+    const stopLease = () => clearInterval(leaseTimer);
+    let finalization;
+    req.finalizeCredits = (succeeded, reason) => {
+      if (!finalization) {
+        const attempt = succeeded
+          ? creditService.settleCreditCharge(charge, { releaseSlot: !options.manualSettlement })
+          : creditService.refundCreditCharge(charge, reason, { releaseSlot: !options.manualSettlement });
+        finalization = options.manualSettlement ? attempt : attempt.finally(stopLease);
+      }
+      return finalization;
+    };
+    req.releaseCreditSlot = () => { stopLease(); return creditService.releaseCreditSlot(charge); };
     const originalJson = res.json.bind(res);
     res.json = (payload) => {
       if (responseHandled) return res;
       responseHandled = true;
       const succeeded = res.statusCode >= 200 && res.statusCode < 400;
-      const finalize = succeeded
-        ? settleCreditCharge(charge)
-        : refundCreditCharge(charge, payload?.message || `HTTP ${res.statusCode}`);
+      const finalize = req.finalizeCredits(succeeded, payload?.message || `HTTP ${res.statusCode}`);
 
       Promise.resolve(finalize)
         .then((creditUsage) => {
           if (succeeded && payload && typeof payload === "object" && !Array.isArray(payload)) {
-            originalJson({ ...payload, creditUsage });
+            if (!res.destroyed) originalJson({ ...payload, creditUsage });
           } else {
-            originalJson(payload);
+            if (!res.destroyed) originalJson(payload);
           }
         })
-        .catch(async (error) => {
-          await refundCreditCharge(charge, "Credit settlement failed").catch(() => {});
-          if (!res.headersSent) {
+        .catch((error) => {
+          // Keep successful work reserved if accounting fails; never turn it into free work.
+          if (!res.headersSent && !res.destroyed) {
             res.status(500);
             originalJson(withMessageMetadata({
-              message: "The AI action finished, but its credit record could not be finalized. No charge was kept.",
+              message: "The credit record could not be finalized. The reservation remains pending; please contact support.",
               code: "CREDIT_SETTLEMENT_FAILED",
-            }, "credits.settlementFailed"));
+            }, "credits.settlementPending"));
           }
           console.error("[credits] Settlement failed:", error.message);
         });
+      if (options.manualSettlement) Promise.resolve(finalize)
+        .then(req.releaseCreditSlot, req.releaseCreditSlot).catch(() => {});
       return res;
     };
-
-    res.once("finish", () => {
-      responseHandled = true;
-    });
-
-    res.once("close", () => {
-      if (!responseHandled && charge) {
-        responseHandled = true;
-        refundCreditCharge(charge, "Client disconnected before completion").catch((error) => {
-          console.error("[credits] Disconnect refund failed:", error.message);
-        });
-      }
-    });
 
     return next();
   } catch (error) {
     if (charge) {
-      await refundCreditCharge(charge, error.message).catch(() => {});
+      await creditService.refundCreditCharge(charge, error.message).catch(() => {});
     }
     return sendCreditError(error, res, next);
   }

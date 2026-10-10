@@ -8,7 +8,6 @@ const {
   buildCompleteReportPrompt,
 } = require("./reportStudioPromptBuilder");
 const { getSectionRagContext } = require("./reportStudioRagService");
-const { settleCreditCharge, refundCreditCharge } = require("./creditService");
 const { interfaceError, withErrorMessageMetadata } = require("../lib/interfaceMessages");
 
 const VALID_STATUSES = new Set(["not-started", "in-progress", "completed"]);
@@ -315,27 +314,18 @@ const generateChapterStream = async (project, sectionId, detailLevel = "standard
   }
 
   const sendEvent = (event, data) => {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    if (!res.destroyed && !res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
   const heartbeat = setInterval(() => {
-    res.write(": keepalive\n\n");
+    if (!res.destroyed && !res.writableEnded) res.write(": keepalive\n\n");
   }, 15000);
 
   const abortController = new AbortController();
-  let creditFinalized = false;
-  if (res) {
-    res.on("close", () => {
-      clearInterval(heartbeat);
-      if (!creditFinalized) {
-        abortController.abort();
-        refundCreditCharge(req?.creditCharge, "Streaming client disconnected").catch((error) => {
-          console.error("[report-studio][stream] Credit refund failed:", error.message);
-        });
-        creditFinalized = true;
-      }
-    });
-  }
+  let creditUsage;
+  const onClose = () => { clearInterval(heartbeat); abortController.abort(); };
+  res.once("close", onClose);
+  if (res.destroyed) abortController.abort();
 
   try {
     const section = findSection(project.reportStructure || [], sectionId);
@@ -349,6 +339,7 @@ const generateChapterStream = async (project, sectionId, detailLevel = "standard
       messageParams: { sectionTitle: section.title },
     });
     const ragContext = await getSectionRagContext(project, section, "generate");
+    abortController.signal.throwIfAborted();
 
     sendEvent("status", {
       step: "synthesis",
@@ -360,11 +351,16 @@ const generateChapterStream = async (project, sectionId, detailLevel = "standard
     const prompt = buildChapterGenerationPrompt(project, section, level, currentChapters, ragContext);
 
     let accumulated = "";
-    await streamGemini(prompt, null, (chunk) => {
+    await streamGemini(prompt, null, async (chunk) => {
+      abortController.signal.throwIfAborted();
+      // Settle before exposing text, retaining the slot until processing stops.
+      creditUsage = await req.finalizeCredits(true);
+      abortController.signal.throwIfAborted();
       accumulated += chunk;
       sendEvent("chunk", { text: chunk });
     }, { tier: "reasoning", signal: abortController.signal });
 
+    if (!accumulated.trim()) throw new Error("AI returned no generated text.");
     let payload;
     try {
       payload = parseAiPayload(accumulated, "chapter");
@@ -383,19 +379,21 @@ const generateChapterStream = async (project, sectionId, detailLevel = "standard
       language: getProjectLanguage(project),
     });
 
-    const creditUsage = await settleCreditCharge(req?.creditCharge);
-    creditFinalized = true;
+    creditUsage = await req.finalizeCredits(true);
     sendEvent("done", { chapter: normalized, creditUsage });
   } catch (err) {
     console.error("[report-studio][stream] Error:", err.message);
-    if (!creditFinalized) {
-      await refundCreditCharge(req?.creditCharge, err.message || "Streaming chapter generation failed").catch(() => {});
-      creditFinalized = true;
-    }
+    // If text was exposed, finalizeCredits retains its settled result. If no
+    // text was exposed, refund only after this processing attempt has stopped.
+    await req.finalizeCredits(false, err.message || "Streaming chapter generation failed").catch((error) => {
+      console.error("[report-studio][stream] Accounting remains pending:", error.message);
+    });
     sendEvent("error", withErrorMessageMetadata({ message: err.message || "Streaming chapter generation failed." }, err, "report.stream.failed"));
   } finally {
     clearInterval(heartbeat);
-    if (!res.writableEnded) res.end();
+    res.off("close", onClose);
+    await req.releaseCreditSlot().catch((error) => console.error("[report-studio][stream] Slot release failed:", error.message));
+    if (!res.destroyed && !res.writableEnded) res.end();
   }
 };
 

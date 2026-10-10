@@ -1,17 +1,24 @@
 const { normalizeEmailLocale } = require("../services/emailLocale");
 const jwt = require("jsonwebtoken");
+const { getJwtSecret } = require("../middleware/authMiddleware");
 const User = require("../models/User");
 const crypto = require("crypto");
-const { OAuth2Client } = require("google-auth-library");
+const googleIdentity = require("../services/googleIdentityService");
+const { passwordPolicyError } = require("../lib/passwordPolicy");
 const { createNotification, createAdminNotification } = require("../services/notificationService");
 const { getWalletForUser } = require("../services/creditService");
 const { withMessageMetadata } = require("../lib/interfaceMessages");
 
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const rejectWeakPassword = (password, res) => {
+  const key = passwordPolicyError(password);
+  if (!key) return false;
+  res.status(400).json(withMessageMetadata({ message: key === "auth.passwordTooLong" ? "Password must not exceed 72 UTF-8 bytes." : "Password must be at least 15 characters." }, key));
+  return true;
+};
 
 // Generate JWT Token
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || "default_super_secret_key", {
+const generateToken = (id, sessionVersion = "0") => {
+  return jwt.sign({ id, sv: sessionVersion }, getJwtSecret(), {
     expiresIn: "30d",
   });
 };
@@ -41,11 +48,12 @@ const buildAuthResponse = (user, authProvider = "email") => ({
   email: user.email,
   avatar: user.avatar,
   authProvider,
+  googleConnected: Boolean(user.googleId), hasPassword: Boolean(user.password),
   emailVerified: user.emailVerified !== false,
   hasCompletedOnboarding: user.hasCompletedOnboarding,
   role: user.role || "etudiant",
   uiLanguage: user.uiLanguage || "fr",
-  token: generateToken(user._id),
+  token: generateToken(user._id, user.sessionVersion),
 });
 
 // @desc    Register a new user
@@ -54,6 +62,7 @@ const buildAuthResponse = (user, authProvider = "email") => ({
 const registerUser = async (req, res) => {
   try {
     const { fullName, email, password } = req.body;
+    if (rejectWeakPassword(password, res)) return;
     const normalizedEmail = String(email || "").trim().toLowerCase();
 
     // Check if user exists
@@ -217,7 +226,7 @@ const verifyEmail = async (req, res) => {
       type: "info",
     });
 
-    return res.status(200).json(buildAuthResponse(user, "email"));
+    return res.status(200).json(buildAuthResponse(user, user.password ? "email" : "google"));
   } catch (error) {
     console.error("[auth] verifyEmail error:", error.message);
     return res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
@@ -273,9 +282,16 @@ const getProfile = async (req, res) => {
   try {
 
     const user = await User.findById(req.user._id)
-      .select("-password");
+      .select("fullName email avatar role uiLanguage hasCompletedOnboarding emailVerified googleId password");
 
-    res.json(user);
+    res.json({
+      _id: user._id, fullName: user.fullName, email: user.email, avatar: user.avatar,
+      role: user.role || "etudiant", uiLanguage: user.uiLanguage || "fr",
+      hasCompletedOnboarding: user.hasCompletedOnboarding === true,
+      emailVerified: user.emailVerified !== false,
+      authProvider: user.googleId && !user.password ? "google" : "email",
+      googleConnected: Boolean(user.googleId), hasPassword: Boolean(user.password),
+    });
 
   } catch (error) {
 
@@ -322,7 +338,7 @@ const updateProfile = async (req, res) => {
       return res.status(404).json(withMessageMetadata({ message: "User not found" }, "auth.userNotFound"));
     }
 
-    if (user.googleId) {
+    if (user.googleId && !user.password) {
       return res.status(403).json(withMessageMetadata({
         message: "This account is connected with Google. Profile and password changes are managed by Google.",
       }, "auth.googleProfileManaged"));
@@ -340,9 +356,7 @@ const updateProfile = async (req, res) => {
     }
 
     if (wantsPasswordChange) {
-      if (!newPassword || newPassword.length < 6) {
-        return res.status(400).json(withMessageMetadata({ message: "Password must be at least 6 characters" }, "auth.passwordTooShort"));
-      }
+      if (rejectWeakPassword(newPassword, res)) return;
 
       if (!currentPassword) {
         return res.status(400).json(withMessageMetadata({ message: "Current password is required" }, "auth.currentPasswordRequired"));
@@ -354,6 +368,7 @@ const updateProfile = async (req, res) => {
       }
 
       user.password = newPassword;
+      user.sessionVersion = crypto.randomUUID();
       passwordChanged = true;
     }
 
@@ -376,11 +391,13 @@ const updateProfile = async (req, res) => {
       email: user.email,
       avatar: user.avatar,
       authProvider: "email",
+      googleConnected: Boolean(user.googleId), hasPassword: Boolean(user.password),
       emailVerified: user.emailVerified !== false,
       hasCompletedOnboarding: user.hasCompletedOnboarding,
       role: user.role || "etudiant",
       uiLanguage: user.uiLanguage || "fr",
       passwordChanged,
+      ...(passwordChanged ? { token: generateToken(user._id, user.sessionVersion) } : {}),
     });
   } catch (error) {
     return res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
@@ -440,9 +457,7 @@ const resetPassword = async (req, res) => {
       return res.status(400).json(withMessageMetadata({ message: "Token and password are required" }, "auth.resetTokenAndPasswordRequired"));
     }
 
-    if (password.length < 6) {
-      return res.status(400).json(withMessageMetadata({ message: "Password must be at least 6 characters" }, "auth.passwordTooShort"));
-    }
+    if (rejectWeakPassword(password, res)) return;
 
     const user = await User.findOne({
       resetToken: token,
@@ -454,6 +469,7 @@ const resetPassword = async (req, res) => {
     }
 
     user.password = password;
+    user.sessionVersion = crypto.randomUUID();
     user.resetToken = undefined;
     user.resetTokenExpiry = undefined;
     await user.save();
@@ -468,94 +484,64 @@ const resetPassword = async (req, res) => {
     });
   }
 };
+// Email equality never authorizes linking an existing account.
 const googleLogin = async (req, res) => {
   try {
-    const { credential } = req.body;
-
-    if (!credential) {
-      return res.status(400).json(withMessageMetadata({ message: "Google credential is required" }, "auth.googleCredentialRequired"));
-    }
-
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    if (!clientId) {
-      console.warn("WARNING: GOOGLE_CLIENT_ID is not configured in environment variables.");
-    }
-
-    const ticket = await client.verifyIdToken({
-      idToken: credential,
-      audience: clientId,
-    });
-
-    const payload = ticket.getPayload();
-    const { sub: googleId, email, name: fullName, picture } = payload;
-
-    if (!email) {
-      return res.status(400).json(withMessageMetadata({ message: "Google account does not provide an email" }, "auth.googleEmailMissing"));
-    }
-
-    // 1. Check if user already exists with googleId
+    const identity = await googleIdentity.verifyGoogleIdentity(req.body?.credential);
+    const { googleId, email, fullName, picture, authoritativeEmail } = identity;
     let user = await User.findOne({ googleId });
-
     if (!user) {
-      // 2. Check if user exists with the same email
-      user = await User.findOne({ email });
-
-      if (user) {
-        // Link Google ID to existing email account
-        user.googleId = googleId;
-        user.emailVerified = true;
-        user.emailVerificationCodeHash = undefined;
-        user.emailVerificationCodeExpiry = undefined;
-        if (picture) user.avatar = picture;
-        await user.save();
-      } else {
-        // 3. Create new user
-        user = await User.create({
-          fullName: fullName || email.split("@")[0],
-          email,
-          googleId,
-          avatar: picture,
-          emailVerified: true,
-          uiLanguage: requestUiLanguage(req),
-        });
+      if (await User.exists({ email })) {
+        return res.status(409).json(withMessageMetadata({ message: "Sign in with your existing login method, then connect Google in Account & Security.", code: "GOOGLE_LINK_REQUIRED" }, "auth.googleLinkRequired"));
+      }
+      user = await User.create({ fullName: fullName || email.split("@")[0], email, googleId,
+        avatar: picture, role: "etudiant", emailVerified: authoritativeEmail, uiLanguage: requestUiLanguage(req) });
+      if (authoritativeEmail) {
         await getWalletForUser(user);
-
-        await createAdminNotification({
-          title: "New Google user registered",
-          titleKey: "events.googleUserRegistered.title",
-          messageKey: "events.googleUserRegistered.message",
-          messageParams: { name: user.fullName },
-          message: `${user.fullName} joined the platform with Gmail.`,
-          type: "info",
-        });
-      }
-    } else {
-      // Keep avatar updated if it changed on Google's end
-      if (picture && user.avatar !== picture) {
-        user.avatar = picture;
-        await user.save();
+        await createAdminNotification({ title: "New Google user registered", titleKey: "events.googleUserRegistered.title",
+          messageKey: "events.googleUserRegistered.message", messageParams: { name: user.fullName },
+          message: user.fullName + " joined the platform with Google.", type: "info" });
       }
     }
-
-    if (user) {
-      res.status(200).json({
-        _id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        avatar: user.avatar,
-        authProvider: "google",
-        emailVerified: true,
-        hasCompletedOnboarding: user.hasCompletedOnboarding,
-        role: user.role || "etudiant",
-        uiLanguage: user.uiLanguage || "fr",
-        token: generateToken(user._id),
-      });
-    } else {
-      res.status(400).json(withMessageMetadata({ message: "Failed to authenticate with Google" }, "auth.googleAuthenticationFailed"));
+    if (user.emailVerified === false) {
+      const verificationCode = setEmailVerificationCode(user);
+      await user.save();
+      const result = await sendEmailVerificationCode(user.email, verificationCode, recipientUiLanguage(user, req));
+      const response = withMessageMetadata({ message: "Please verify your email before logging in. A new code has been sent.",
+        requiresEmailVerification: true, email: user.email, emailSent: result.sent === true }, "auth.verifyEmailBeforeLogin");
+      if (result.devFallback && process.env.NODE_ENV !== "production") response.devVerificationCode = result.verificationCode;
+      return res.status(403).json(response);
     }
+    return res.json(buildAuthResponse(user, "google"));
   } catch (error) {
-    console.error("[auth] googleLogin error:", error.message);
-    res.status(500).json(withMessageMetadata({ message: "Google authentication failed", error: error.message }, "auth.googleAuthenticationFailed"));
+    const collision = error.code === 11000;
+    return res.status(collision ? 409 : error.status || 500).json(withMessageMetadata({
+      message: collision ? "Sign in using your existing login method before connecting Google." : "Google authentication failed.",
+      ...(collision ? { code: "GOOGLE_LINK_REQUIRED" } : {}),
+    }, collision ? "auth.googleLinkRequired" : "auth.googleAuthenticationFailed"));
+  }
+};
+
+// Require both an authenticated session and current password proof to add a login method.
+const connectGoogle = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user?.password || user.emailVerified === false || !req.body?.currentPassword || !await user.matchPassword(req.body.currentPassword)) {
+      return res.status(401).json(withMessageMetadata({ message: "Confirm your current password to connect Google." }, "auth.googlePasswordRequired"));
+    }
+    const { googleId, email } = await googleIdentity.verifyGoogleIdentity(req.body.credential);
+    if (email !== user.email || (user.googleId && user.googleId !== googleId)) {
+      return res.status(409).json(withMessageMetadata({ message: "Choose the Google account with your SmartPFE email. An existing Google link cannot be replaced." }, "auth.googleLinkConflict"));
+    }
+    if (user.googleId === googleId) return res.json(buildAuthResponse(user, "email"));
+    const linked = await User.findOneAndUpdate({ _id: user._id, password: user.password, emailVerified: true,
+      $and: [{ $or: [{ googleId: { $exists: false } }, { googleId: null }] },
+        { $or: [{ sessionVersion: user.sessionVersion || "0" }, { sessionVersion: { $exists: false } }] }] },
+      { $set: { googleId, sessionVersion: crypto.randomUUID() } }, { new: true, runValidators: true });
+    if (!linked) return res.status(409).json(withMessageMetadata({ message: "The account changed. Please sign in again before connecting Google." }, "auth.googleLinkConflict"));
+    return res.json(buildAuthResponse(linked, "email"));
+  } catch (error) {
+    return res.status(error.code === 11000 ? 409 : error.status || 500).json(withMessageMetadata({ message: "Could not connect Google. Please try again." }, error.code === 11000 ? "auth.googleLinkConflict" : "auth.googleAuthenticationFailed"));
   }
 };
 
@@ -571,4 +557,5 @@ module.exports = {
   forgotPassword,
   resetPassword,
   googleLogin,
+  connectGoogle,
 };

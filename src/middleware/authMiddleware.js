@@ -26,7 +26,7 @@ const protect = async (req, res, next) => {
       token = req.headers.authorization.split(" ")[1];
 
       // Verify token
-      const decoded = jwt.verify(token, getJwtSecret());
+      const decoded = jwt.verify(token, getJwtSecret(), { algorithms: ["HS256"] });
 
       // Get user from the token
       req.user = await User.findById(decoded.id).select("-password");
@@ -34,6 +34,10 @@ const protect = async (req, res, next) => {
       if (!req.user) {
         return res.status(401).json(withMessageMetadata({ message: "Not authorized, user not found" }, "auth.userNotAuthorized"));
       }
+      if (String(decoded.sv || "0") !== String(req.user.sessionVersion || "0")) {
+        return res.status(401).json({ message: "Session expired. Please sign in again.", messageKey: "auth.tokenInvalid" });
+      }
+      req.authClaims = decoded;
 
       return next();
     } catch (error) {
@@ -56,4 +60,9 @@ const adminOnly = (req, res, next) => {
   res.status(403).json(withMessageMetadata({ message: "Admin access required" }, "auth.adminAccessRequired"));
 };
 
-module.exports = { protect, adminOnly };
+const studentOnly = (req, res, next) => {
+  if (req.user?.role === "etudiant" && req.user.emailVerified !== false) return next();
+  return res.status(403).json({ message: "Verified student access required", messageKey: "security.studentRequired" });
+};
+
+module.exports = { protect, adminOnly, studentOnly, getJwtSecret };

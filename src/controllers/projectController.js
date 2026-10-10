@@ -67,8 +67,19 @@ const createGenerationNotificationIfRequested = async (req, projectId) => {
 // @route   POST /api/projects/onboarding
 // @access  Private
 const createProject = async (req, res) => {
+  let claimedUser = null;
+  let projectCreated = false;
   try {
     const { basics, description, technicalContext } = req.body;
+    if (await Project.exists({ user: req.user._id })) {
+      return res.status(409).json({ message: "Onboarding is already completed. Use project settings to edit your project." });
+    }
+    // Claim once atomically so concurrent submissions cannot create duplicate projects.
+    claimedUser = await User.findOneAndUpdate(
+      { _id: req.user._id, hasCompletedOnboarding: { $ne: true } },
+      { $set: { hasCompletedOnboarding: true } }, { new: true }
+    );
+    if (!claimedUser) return res.status(409).json({ message: "Onboarding is already completed." });
 
     // Create the project
     const project = await Project.create({
@@ -77,13 +88,10 @@ const createProject = async (req, res) => {
       description,
       technicalContext,
     });
+    projectCreated = true;
 
     // Update the user's onboarding status
-    const user = await User.findById(req.user._id);
-    if (user) {
-      user.hasCompletedOnboarding = true;
-      await user.save();
-    }
+    const user = claimedUser;
 
     await createNotification({
       user: req.user._id,
@@ -105,6 +113,7 @@ const createProject = async (req, res) => {
 
     res.status(201).json(project);
   } catch (error) {
+    if (claimedUser && !projectCreated) await User.updateOne({ _id: req.user._id }, { $set: { hasCompletedOnboarding: false } });
     console.error("[project] createProject error:", error.message);
     res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
   }

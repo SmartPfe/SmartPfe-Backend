@@ -382,34 +382,42 @@ const streamGeminiModel = async ({ model, systemInstruction, contents, onChunk =
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  let deliveredText = false;
+  try {
+    while (true) {
+      options.signal?.throwIfAborted();
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop();
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
 
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith("data: ")) {
-        const jsonStr = trimmed.slice(6).trim();
-        if (!jsonStr || jsonStr === "[DONE]") continue;
-        try {
-          const parsed = JSON.parse(jsonStr);
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("data: ")) {
+          const jsonStr = trimmed.slice(6).trim();
+          if (!jsonStr || jsonStr === "[DONE]") continue;
+          let parsed;
+          try { parsed = JSON.parse(jsonStr); } catch (_) { continue; }
           const chunkText = getGeminiText(parsed);
           if (chunkText) {
+            try { await onChunk(chunkText); } catch (error) { error.noFallback = true; throw error; }
+            deliveredText = true;
             fullText += chunkText;
-            onChunk(chunkText);
           }
-        } catch (_) {
-          // ignore unparsable partial JSON chunk
         }
       }
     }
-  }
 
-  return fullText;
+    return fullText;
+  } catch (error) {
+    if (deliveredText) error.noFallback = true;
+    throw error;
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
 };
 
 const streamGeminiMessages = async (messages, onChunk = () => {}, options = {}) => {
@@ -440,9 +448,11 @@ const streamGeminiMessages = async (messages, onChunk = () => {}, options = {}) 
 
   const failures = [];
   for (const model of models) {
+    options.signal?.throwIfAborted();
     try {
       return await streamGeminiModel({ model, systemInstruction, contents, onChunk, options });
     } catch (error) {
+      if (options.signal?.aborted || error.noFallback) throw error;
       failures.push(`${model}: ${error.message}`);
       if (models.length > 1) {
         console.warn(`[gemini-stream] Falling back after ${model} failed: ${error.message}`);

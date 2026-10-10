@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+const { passwordPolicyError } = require("../lib/passwordPolicy");
 
 const userSchema = new mongoose.Schema(
   {
@@ -24,7 +25,7 @@ const userSchema = new mongoose.Schema(
       required: function() {
         return !this.googleId;
       },
-      minlength: [6, "Password must be at least 6 characters"],
+      validate: { validator: function(value) { return !value || !this.isModified("password") || !passwordPolicyError(value); }, message: "Password must contain at least 15 characters and at most 72 UTF-8 bytes." },
     },
     googleId: {
       type: String,
@@ -60,6 +61,7 @@ const userSchema = new mongoose.Schema(
       enum: ["admin", "etudiant"],
       default: "etudiant",
     },
+    sessionVersion: { type: String, default: "0" },
     uiLanguage: {
       type: String,
       enum: ["en", "fr"],

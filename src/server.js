@@ -5,12 +5,15 @@ const dotenv = require("dotenv");
 
 const connectDB = require("./config/db");
 dotenv.config();
+require("./middleware/authMiddleware").getJwtSecret();
 
 connectDB();
 
 const app = express();
-const trustProxySetting = String(process.env.TRUST_PROXY || "1").trim();
-app.set("trust proxy", /^\d+$/.test(trustProxySetting) ? Number(trustProxySetting) : trustProxySetting);
+app.use(require("helmet")({ contentSecurityPolicy: false, strictTransportSecurity: false,
+  crossOriginResourcePolicy: { policy: "same-site" } }));
+const trustProxySetting = String(process.env.TRUST_PROXY || "0").trim();
+app.set("trust proxy", trustProxySetting === "false" ? false : /^\d+$/.test(trustProxySetting) ? Number(trustProxySetting) : trustProxySetting);
 const maskedMongoUri = process.env.MONGO_URI
   ? process.env.MONGO_URI.replace(/\/\/([^:]+):([^@]+)@/, "//$1:***@")
   : "not configured";
@@ -53,16 +56,16 @@ app.use(cors({
   },
   credentials: true
 }));
+// Apply the public contact limit before the larger authenticated document parser.
+app.use(observabilityContextMiddleware);
+app.use("/api/contact", contactRoutes);
+app.use("/api/auth", authRoutes);
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
-app.use(observabilityContextMiddleware);
-
-app.use("/api/auth", authRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/contact", contactRoutes);
 app.use("/api/credits", creditRoutes);
 app.get("/api/health", (req, res) => {
   res.status(200).json({

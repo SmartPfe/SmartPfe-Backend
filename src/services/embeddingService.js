@@ -1,5 +1,5 @@
 /**
- * Embedding Service — Pure Node.js query embedding via @xenova/transformers
+ * Embedding Service — Pure Node.js query embedding via @huggingface/transformers
  *
  * Replaces the Python bridge (ragEmbeddingQuery.py) with an in-process
  * ONNX Runtime embedding pipeline.  Uses the same model the Python script
@@ -18,13 +18,12 @@ let pipelinePromise = null;
 const getPipeline = () => {
   if (!pipelinePromise) {
     pipelinePromise = (async () => {
-      // @xenova/transformers is ESM-only starting v3; v2 ships CJS compat
-      const { pipeline } = await import("@xenova/transformers");
+      const { pipeline } = await import("@huggingface/transformers");
       console.info("[embedding] Loading sentence-transformers model into ONNX Runtime…");
       const extractor = await pipeline(
         "feature-extraction",
         "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
-        { quantized: true }
+        { dtype: "q8", device: "cpu" }
       );
       console.info("[embedding] Model loaded — subsequent embeddings will be instant.");
       return extractor;

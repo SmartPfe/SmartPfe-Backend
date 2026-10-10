@@ -1,4 +1,3 @@
-const jwt = require("jsonwebtoken");
 const Notification = require("../models/Notification");
 const { withMessageMetadata } = require("../lib/interfaceMessages");
 const User = require("../models/User");
@@ -58,17 +57,7 @@ const markNotificationsRead = async (req, res) => {
 
 const streamNotifications = async (req, res) => {
   try {
-    const token = req.query.token;
-    if (!token) {
-      return res.status(401).json(withMessageMetadata({ message: "Not authorized, no token" }, "auth.tokenRequired"));
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "default_super_secret_key");
-    const user = await User.findById(decoded.id).select("_id");
-
-    if (!user) {
-      return res.status(401).json(withMessageMetadata({ message: "Not authorized, user not found" }, "auth.userNotAuthorized"));
-    }
+    const user = req.user;
 
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
@@ -79,6 +68,15 @@ const streamNotifications = async (req, res) => {
 
     sendEvent(res, "connected", { connected: true });
     addClient(user._id, res);
+    // Re-check long-lived connections; revoked/expired sessions cannot keep receiving events.
+    const checkSession = setInterval(async () => {
+      try {
+        const current = await User.findById(user._id).select("sessionVersion");
+        if (!current || String(current.sessionVersion || "0") !== String(req.authClaims.sv || "0") ||
+          Date.now() >= req.authClaims.exp * 1000) res.end();
+      } catch { res.end(); }
+    }, 30000);
+    res.once("close", () => clearInterval(checkSession));
   } catch (error) {
     console.error("[notification] streamNotifications error:", error.message);
     res.status(401).json(withMessageMetadata({ message: "Not authorized, token failed" }, "auth.tokenInvalid"));

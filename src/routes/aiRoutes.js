@@ -43,7 +43,8 @@ const {
   answerJuryQAQuestion,
   finalizeJuryQA,
 } = require("../controllers/aiController");
-const { protect } = require("../middleware/authMiddleware");
+const { protect, studentOnly } = require("../middleware/authMiddleware");
+router.use(protect, studentOnly);
 const { creditGate } = require("../middleware/creditMiddleware");
 const Project = require("../models/Project");
 
@@ -54,6 +55,7 @@ const upload = multer({
     files: 1,
   },
 });
+const { uploadCapacity, validateAudio, runAudio } = require("../middleware/audioGuard");
 
 const traceReportStructureRequest = (req, res, next) => {
   console.info(`[ai-route][report-structure] ${req.method} ${req.originalUrl}`);
@@ -130,9 +132,9 @@ router.post("/pitch/refine", protect, creditGate("pitch_full"), refinePitch);
 router.post("/pitch/slide/generate", protect, creditGate("pitch_slide"), generatePitchSlide);
 router.post("/pitch/slide/refine", protect, creditGate("pitch_slide"), refinePitchSlide);
 router.post("/pitch/slide/translate", protect, creditGate("translation"), translatePitchSlide);
-router.post("/jury-simulation/analyze", protect, creditGate("jury_simulation"), upload.single("audio"), analyzeJurySimulation);
+router.post("/jury-simulation/analyze", protect, uploadCapacity, upload.single("audio"), validateAudio, creditGate("jury_simulation"), runAudio(analyzeJurySimulation));
 router.post("/jury-qa/generate", protect, creditGate(resolveJuryQaStart), generateJuryQA);
-router.post("/jury-qa/:sessionId/answer", protect, creditGate("jury_qa_included"), upload.single("audio"), answerJuryQAQuestion);
+router.post("/jury-qa/:sessionId/answer", protect, uploadCapacity, upload.single("audio"), validateAudio, creditGate("jury_qa_included"), runAudio(answerJuryQAQuestion));
 router.post("/jury-qa/:sessionId/finalize", protect, creditGate("jury_qa_included"), finalizeJuryQA);
 
 module.exports = router;

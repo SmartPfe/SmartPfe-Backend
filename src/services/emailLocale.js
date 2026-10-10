@@ -99,9 +99,9 @@ const normalizeEmailLocale = (uiLanguage) => {
   const language = typeof uiLanguage === "string"
     ? uiLanguage.trim().toLowerCase().split(/[-_]/, 1)[0]
     : "";
-  return language === "fr" ? "fr" : "en";
+  return language === "en" ? "en" : "fr";
 };
 
-const getEmailCopy = (uiLanguage = "en") => EMAIL_COPY[normalizeEmailLocale(uiLanguage)];
+const getEmailCopy = (uiLanguage = "fr") => EMAIL_COPY[normalizeEmailLocale(uiLanguage)];
 
 module.exports = { normalizeEmailLocale, getEmailCopy };

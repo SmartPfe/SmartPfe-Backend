@@ -65,8 +65,8 @@ test("submission persists a receipt, sends both emails and a linked student noti
   assert.equal(mails.length, 2);
   const receipt = mails.find((mail) => mail.to === student.email);
   assert.ok(receipt);
-  assert.match(receipt.text, /team member will contact you/);
-  assert.match(receipt.text, /After your payment is verified/);
+  assert.match(receipt.text, /Un membre de l’équipe vous contactera/);
+  assert.match(receipt.text, /Une fois le paiement vérifié/);
   assert.match(receipt.text, /250/);
   assert.match(receipt.text, /12.5 TND/);
   assert.match(receipt.text, new RegExp(requestId));

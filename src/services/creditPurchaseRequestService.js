@@ -94,11 +94,11 @@ const createCreditPurchaseRequest = async ({ user, phone, packageKey, credits })
   const [adminEmail, studentEmail, notificationSent] = await Promise.all([
     (async () => {
       const recipient = getCreditPurchaseRequestRecipient();
-      let uiLanguage = "en";
+      let uiLanguage = "fr";
       if (recipient) {
         try {
           const adminRecipient = await User.findOne({ email: recipient.trim().toLowerCase(), role: "admin" }).select("uiLanguage");
-          uiLanguage = adminRecipient?.uiLanguage || "en";
+          uiLanguage = adminRecipient?.uiLanguage || "fr";
         } catch (error) { console.error("[credits] admin recipient preference error:", error.message); }
       }
       return sendCreditPurchaseRequestEmail({ request, uiLanguage });

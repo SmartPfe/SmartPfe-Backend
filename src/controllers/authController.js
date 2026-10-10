@@ -44,7 +44,7 @@ const buildAuthResponse = (user, authProvider = "email") => ({
   emailVerified: user.emailVerified !== false,
   hasCompletedOnboarding: user.hasCompletedOnboarding,
   role: user.role || "etudiant",
-  uiLanguage: user.uiLanguage || "en",
+  uiLanguage: user.uiLanguage || "fr",
   token: generateToken(user._id),
 });
 
@@ -288,7 +288,7 @@ const getProfile = async (req, res) => {
 };
 
 const getPreferences = async (req, res) => {
-  return res.json({ uiLanguage: req.user.uiLanguage || "en" });
+  return res.json({ uiLanguage: req.user.uiLanguage || "fr" });
 };
 
 const updatePreferences = async (req, res) => {
@@ -308,7 +308,7 @@ const updatePreferences = async (req, res) => {
       return res.status(404).json(withMessageMetadata({ message: "User not found" }, "auth.userNotFound"));
     }
 
-    return res.json({ uiLanguage: user.uiLanguage || "en" });
+    return res.json({ uiLanguage: user.uiLanguage || "fr" });
   } catch (error) {
     return res.status(500).json(withMessageMetadata({ message: "Server error", error: error.message }, "common.serverError"));
   }
@@ -379,7 +379,7 @@ const updateProfile = async (req, res) => {
       emailVerified: user.emailVerified !== false,
       hasCompletedOnboarding: user.hasCompletedOnboarding,
       role: user.role || "etudiant",
-      uiLanguage: user.uiLanguage || "en",
+      uiLanguage: user.uiLanguage || "fr",
       passwordChanged,
     });
   } catch (error) {
@@ -547,7 +547,7 @@ const googleLogin = async (req, res) => {
         emailVerified: true,
         hasCompletedOnboarding: user.hasCompletedOnboarding,
         role: user.role || "etudiant",
-        uiLanguage: user.uiLanguage || "en",
+        uiLanguage: user.uiLanguage || "fr",
         token: generateToken(user._id),
       });
     } else {

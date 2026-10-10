@@ -44,13 +44,15 @@ test.after(() => {
   }
 });
 
-test("normalizes supported French UI language and defaults every other value to English", () => {
+test("normalizes supported UI languages and defaults missing or unsupported values to French", () => {
   assert.equal(normalizeEmailLocale("fr"), "fr");
   assert.equal(normalizeEmailLocale(" FR-fr "), "fr");
   assert.equal(normalizeEmailLocale("fr_CA"), "fr");
-  assert.equal(normalizeEmailLocale("ar"), "en");
-  assert.equal(normalizeEmailLocale(undefined), "en");
-  assert.equal(normalizeEmailLocale(12), "en");
+  assert.equal(normalizeEmailLocale("en"), "en");
+  assert.equal(normalizeEmailLocale(" EN-us "), "en");
+  assert.equal(normalizeEmailLocale("ar"), "fr");
+  assert.equal(normalizeEmailLocale(undefined), "fr");
+  assert.equal(normalizeEmailLocale(12), "fr");
 });
 
 test("credit-request recipient helper preserves configured inbox precedence and missing-recipient fallback", () => {
@@ -102,7 +104,7 @@ test("reset and verification messages follow UI language while preserving links 
   assert.match(sentMessages[1].html, /href="https:\/\/smartpfe\.example\.test\/reset-password\/jeton-reset"/);
   assert.equal(sentMessages[2].subject, "Vérifiez votre adresse e-mail");
   assert.match(sentMessages[2].html, /&lt;123&amp;&gt;/);
-  assert.equal(sentMessages[3].subject, "Verify your email");
+  assert.equal(sentMessages[3].subject, "Vérifiez votre adresse e-mail");
   assert.match(sentMessages[3].html, /654321/);
 });
 
@@ -148,7 +150,7 @@ test("credit-ready notice localizes copy and escapes recipient name without chan
     email: "student@example.test", fullName: "Alex <b>Student</b>", amount: 1250, balance: 1400, uiLanguage: "fr",
   });
   await emailService.sendPurchasedCreditsEmail({
-    email: "student@example.test", fullName: "Alex", amount: 25, balance: 100,
+    email: "student@example.test", fullName: "Alex", amount: 25, balance: 100, uiLanguage: "en",
   });
 
   assert.equal(sentMessages[0].subject, "1250 crédits SmartPFE sont prêts pour votre projet");
@@ -157,6 +159,15 @@ test("credit-ready notice localizes copy and escapes recipient name without chan
   assert.match(sentMessages[0].html, /Solde acheté : 1400 crédits/);
   assert.equal(sentMessages[1].subject, "25 SmartPFE credits are ready for your project");
   assert.match(sentMessages[1].html, /Your purchase has been confirmed/);
+});
+
+test("transactional mail without a language preference defaults to French", async () => {
+  await emailService.sendEmailVerificationCode("student@example.test", "123456");
+  await emailService.sendResetPasswordEmail("student@example.test", "reset-token");
+  await emailService.sendPurchasedCreditsEmail({ email: "student@example.test", amount: 25, balance: 100 });
+  assert.equal(sentMessages[0].subject, "Vérifiez votre adresse e-mail");
+  assert.equal(sentMessages[1].subject, "Réinitialiser votre mot de passe");
+  assert.equal(sentMessages[2].subject, "25 crédits SmartPFE sont prêts pour votre projet");
 });
 
 test("missing SMTP configuration preserves existing development fallback results", async () => {

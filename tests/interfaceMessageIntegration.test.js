@@ -24,7 +24,7 @@ test('new registration uses validated interface header for preference and verifi
     writes.push(payload);
     return { ...payload, _id: 'mock-account', save: async () => undefined };
   });
-  for (const [header, language] of [['fr', 'fr'], ['en', 'en'], ['Arabic', 'en'], [undefined, 'en']]) {
+  for (const [header, language] of [['fr', 'fr'], ['en', 'en'], ['Arabic', 'fr'], [undefined, 'fr']]) {
     const res = response();
     await registerUser({ body: { fullName: 'Existing English name', email: 'demo@example.invalid', password: 'test-placeholder', language: 'Arabic' }, headers: { 'x-ui-language': header } }, res);
     assert.equal(res.statusCode, 201);

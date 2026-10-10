@@ -61,17 +61,24 @@ async function makeApi(t, userOverrides = {}) {
   return { api, user, writes, notifications };
 }
 
-test("preference schema allows only en/fr and defaults to English", () => {
+test("preference schema allows only en/fr and defaults to French", () => {
   const path = User.schema.path("uiLanguage");
   assert.deepEqual(path.enumValues, ["en", "fr"]);
-  assert.equal(path.defaultValue, "en");
+  assert.equal(path.defaultValue, "fr");
 });
 
-test("GET preferences defaults legacy accounts to English, including Google accounts", async (t) => {
+test("GET preferences defaults missing preferences to French, including Google accounts", async (t) => {
   const { api } = await makeApi(t, { googleId: "google-user-id" });
   const result = await api("/preferences");
   assert.equal(result.status, 200);
+  assert.deepEqual(result.data, { uiLanguage: "fr" });
+});
+
+test("GET preferences preserves an existing English choice without writing", async (t) => {
+  const { api, writes } = await makeApi(t, { uiLanguage: "en" });
+  const result = await api("/preferences");
   assert.deepEqual(result.data, { uiLanguage: "en" });
+  assert.equal(writes.length, 0);
 });
 
 test("PUT preferences updates only uiLanguage and supports Google accounts without notifications", async (t) => {

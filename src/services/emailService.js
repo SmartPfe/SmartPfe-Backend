@@ -55,7 +55,7 @@ const escapeHtml = (value = "") =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 
-const sendResetPasswordEmail = async (email, token, uiLanguage = "en") => {
+const sendResetPasswordEmail = async (email, token, uiLanguage = "fr") => {
   const copy = getEmailCopy(uiLanguage).reset;
   const resetLink = `${process.env.FRONTEND_URL}/reset-password/${token}`;
   const transporter = createTransporter();
@@ -111,7 +111,7 @@ const sendResetPasswordEmail = async (email, token, uiLanguage = "en") => {
   }
 };
 
-const sendEmailVerificationCode = async (email, code, uiLanguage = "en") => {
+const sendEmailVerificationCode = async (email, code, uiLanguage = "fr") => {
   const copy = getEmailCopy(uiLanguage).verification;
   const transporter = createTransporter();
 
@@ -217,7 +217,7 @@ const sendContactMessageEmail = async ({ name, email, subject, message }) => {
   }
 };
 
-const sendPurchasedCreditsEmail = async ({ email, fullName, amount, balance, uiLanguage = "en" }) => {
+const sendPurchasedCreditsEmail = async ({ email, fullName, amount, balance, uiLanguage = "fr" }) => {
   const locale = normalizeEmailLocale(uiLanguage);
   const copy = getEmailCopy(locale).creditsReady;
   const transporter = createTransporter();
@@ -260,7 +260,7 @@ const sendPurchasedCreditsEmail = async ({ email, fullName, amount, balance, uiL
   return { sent: true };
 };
 
-const sendCreditPurchaseRequestEmail = async ({ request, uiLanguage = "en" }) => {
+const sendCreditPurchaseRequestEmail = async ({ request, uiLanguage = "fr" }) => {
   const locale = normalizeEmailLocale(uiLanguage);
   const copy = getEmailCopy(locale).adminCreditRequest;
   const transporter = createTransporter();
@@ -319,7 +319,7 @@ const sendCreditPurchaseRequestEmail = async ({ request, uiLanguage = "en" }) =>
   return { sent: true };
 };
 
-const sendCreditPurchaseReceiptEmail = async ({ request, uiLanguage = "en" }) => {
+const sendCreditPurchaseReceiptEmail = async ({ request, uiLanguage = "fr" }) => {
   const locale = normalizeEmailLocale(uiLanguage);
   const copy = getEmailCopy(locale).creditReceipt;
   const transporter = createTransporter();

@@ -63,7 +63,7 @@ const userSchema = new mongoose.Schema(
     uiLanguage: {
       type: String,
       enum: ["en", "fr"],
-      default: "en",
+      default: "fr",
     },
   },
   { timestamps: true }
